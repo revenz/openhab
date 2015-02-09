@@ -190,6 +190,15 @@
 			<Model>ASR-ZW</Model>
 			<Label lang="en">Thermostat Receiver</Label>
 		</Product>
+		<Product>
+			<Reference>
+				<Type>0004</Type>
+				<Id>0001</Id>
+			</Reference>
+			<Model>SCSC17</Model>
+			<Label lang="en">7 Day Room Thermostat</Label>
+			<ConfigFile>horstmann/scsc17.xml</ConfigFile>
+		</Product>
 	</Manufacturer>
 	<Manufacturer>
 		<Id>0060</Id>
@@ -742,6 +751,15 @@
 			<Label lang="en">4 button keyfob - generation 5</Label>
 			<ConfigFile>aeon/keyfobg5.xml</ConfigFile>
 		</Product>
+		<Product>
+			<Reference>
+				<Type>0001</Type>
+				<Id>0026</Id>
+			</Reference>
+			<Model>dsa38</Model>
+			<Label lang="en">1 button keyfob</Label>
+			<ConfigFile>aeon/dsa38.xml</ConfigFile>
+		</Product>
 	</Manufacturer>
 	<Manufacturer>
 		<Id>0098</Id>
@@ -1105,11 +1123,15 @@
 		<Product>
 			<Reference>
 				<Type>0900</Type>
-				<Id>4000</Id>
+				<Id>1000</Id>
 			</Reference>
 			<Reference>
 				<Type>0900</Type>
-				<Id>1000</Id>
+				<Id>2000</Id>
+			</Reference>
+			<Reference>
+				<Type>0900</Type>
+				<Id>4000</Id>
 			</Reference>
 			<Model>FGRGBW</Model>
 			<Label lang="en">Fibaro RGBW Controller</Label>
@@ -1180,6 +1202,15 @@
 			<Label lang="en">Z-Wave Door/Window Sensor</Label>
 			<ConfigFile>eco/dwzwave2.xml</ConfigFile>
 		</Product>
+		<Product>
+			<Reference>
+				<Type>0001</Type>
+				<Id>0003</Id>
+			</Reference>
+			<Model>TILTZWAVE1</Model>
+			<Label lang="en">Z-Wave Garage Door Sensor</Label>
+			<ConfigFile>eco/tiltzwave1.xml</ConfigFile>
+		</Product>
 	</Manufacturer>
 	<Manufacturer>
 		<Id>001E</Id>
@@ -1201,6 +1232,15 @@
 	<Manufacturer>
 		<Id>0115</Id>
 		<Name>ZWave.me</Name>
+		<Product>
+			<Reference>
+				<Type>1000</Type>
+				<Id>0200</Id>
+			</Reference>
+			<Model>ZME_064374</Model>
+			<Label lang="en">Wall Plug Switch</Label>
+			<ConfigFile>zwaveme/zme_064374.xml</ConfigFile>
+		</Product>
 		<Product>
 			<Reference>
 				<Type>1000</Type>
@@ -1620,6 +1660,15 @@
 			<Label lang="en">Flush dimmer</Label>
 			<ConfigFile>qubino/zmnhda.xml</ConfigFile>
 		</Product>
+		<Product>
+			<Reference>
+				<Type>5</Type>
+				<Id>1</Id>
+			</Reference>
+			<Model>ZMNHIA</Model>
+			<Label lang="en">Flush on/off thermostat</Label>
+			<ConfigFile>qubino/zmnhia.xml</ConfigFile>
+		</Product>
 	</Manufacturer>
 	<Manufacturer>
 		<Id>97</Id>
@@ -1762,5 +1811,17 @@
 			<ConfigFile>yale/yrd210.xml</ConfigFile>
 		</Product>
 	</Manufacturer>
-	
+	<Manufacturer>
+		<Id>0166</Id>
+		<Name>Swiid</Name>
+		<Product>
+			<Reference>
+				<Type>0100</Type>
+				<Id>0100</Id>
+			</Reference>
+			<Model>SW-ZCS-1</Model>
+			<Label lang="en">Cord Switch</Label>
+			<ConfigFile>swiid/SW-ZCS-1.xml</ConfigFile>
+		</Product>
+	</Manufacturer>
 </Manufacturers>
