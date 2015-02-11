@@ -193,14 +193,21 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
 					new Object[]{"value", String.valueOf(getStateAsInt(item.getState().toString()))},
 					new Object[]{"unit", "db"},
 					new Object[]{"graphable", true}
-				));					
+				));				
+			}else if(ihbc.type.equals(DeviceTypes.TYPE_ELECTRICITY)){
+    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+					new Object[]{"key", "ConsoTotal"},
+					new Object[]{"value", String.valueOf(getStateAsInt(item.getState().toString()))},
+					new Object[]{"unit", "kWh"},
+					new Object[]{"graphable", true}
+				));		
 			}else if(ihbc.type.equals(DeviceTypes.TYPE_PRESSURE)){
     			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
 					new Object[]{"key", "Value"},
 					new Object[]{"value", String.valueOf(getStateAsInt(item.getState().toString()))},
 					new Object[]{"unit", "mbar"},
 					new Object[]{"graphable", true}
-				));
+				));	  	
 			}else if(ihbc.type.equals(DeviceTypes.TYPE_DOOR) || ihbc.type.equals(DeviceTypes.TYPE_FLOOD) || ihbc.type.equals(DeviceTypes.TYPE_MOTION) || ihbc.type.equals(DeviceTypes.TYPE_SMOKE)){
 				boolean tripped = item.getStateAs(OpenClosedType.class) == OpenClosedType.OPEN;
 				if(tripped && !ihbc.isTripped){
@@ -222,10 +229,20 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
 			if(ihbc.wattsId != null){
 				Item wattItem = items.get(ihbc.wattsId);
 				if(wattItem != null){
-	    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
-    					new Object[]{"key", "Energy"},
-    					new Object[]{"value", String.valueOf(wattItem.getState())}
-					));
+					if(ihbc.type.equals(DeviceTypes.TYPE_ELECTRICITY)){
+		    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+	    					new Object[]{"key", "Watts"},
+	    					new Object[]{"unit", "W"},
+	    					new Object[]{"graphable", true},
+	    					new Object[]{"value", String.valueOf(wattItem.getState())}
+						));						
+					}else{
+		    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+	    					new Object[]{"key", "Energy"},
+	    					new Object[]{"graphable", true},
+	    					new Object[]{"value", String.valueOf(wattItem.getState())}
+						));
+					}
 				}
 			}
 			

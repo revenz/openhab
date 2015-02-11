@@ -12,14 +12,19 @@ import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpUtils;
 
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.sql.Date;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.Map;
+import java.util.zip.GZIPOutputStream;
 
 import org.joda.time.DateTime;
 import org.joda.time.LocalDateTime;
@@ -34,6 +39,7 @@ import org.openhab.core.persistence.extensions.PersistenceExtensions;
 //import org.openhab.core.persistence.extensions.PersistenceExtensions;
 import org.openhab.core.types.Command;
 import org.openhab.core.types.State;
+import org.openhab.io.net.http.HttpUtil;
 import org.osgi.framework.BundleContext;
 import org.osgi.service.http.NamespaceException;
 
@@ -121,53 +127,72 @@ public class imperiHabBinding extends imperiHabBindingBase {
 	@Override
 	public void service(ServletRequest req, ServletResponse res) throws ServletException, IOException {
 		if (req instanceof HttpServletRequest) {
-			String url = ((HttpServletRequest)req).getRequestURL().toString();
+			HttpServletRequest request = (HttpServletRequest)req; 
+			HttpServletResponse response = (HttpServletResponse)res;
+			String url = request.getRequestURL().toString();
 			url = url.substring(url.indexOf(SERVLET_NAME) + SERVLET_NAME.length());
 			//String queryString = ((HttpServletRequest)req).getQueryString();		
 			if(url.toLowerCase().startsWith("/ss-image")){
+				response.setHeader("Cache-Control", "max-age=604800,private");
 				imperiHabAlarmPanel.returnImage(res, url.substring("/ss-image/".length()));
 				return;
 			}
-			
-			
-			PrintWriter writer = res.getWriter();
+			PrintWriter writer = null;
+			GZIPOutputStream gz = null;
+			if(request.getHeader("Accept-Encoding") != null && request.getHeader("Accept-Encoding").contains("gzip"))
+			{
+				gz = new GZIPOutputStream(res.getOutputStream());
+				writer = new PrintWriter(gz);				
+			}else{
+				writer = res.getWriter();
+			}
+			response.setHeader("Content-Encoding","gzip");
+			if(url.toLowerCase().equals("/alarm")){
+				response.setHeader("Cache-Control", "max-age=600,private");
+			}
+			else{
+				response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate"); // HTTP 1.1.
+				response.setHeader("Pragma", "no-cache"); // HTTP 1.0.
+				response.setDateHeader("Expires", 0); // Proxies.
+			}
 			if(url.toLowerCase().equals("/alarm")){
 				imperiHabAlarmPanel.writeHtml(writer);
-				return;
 			}
 			else if(url.toLowerCase().equals("/alarm-status")){
-				writer.print(imperiHabAlarmController.alarmStatus());
-				return;
+				writer.write(imperiHabAlarmController.alarmStatus());
 			}
 			else if(url.toLowerCase().equals("/alarm-arm-away")){
-				writer.print("{\"success\":" + (imperiHabAlarmController.arm(true) ? "true" : "false") + "}");
-				return;				
+				writer.write("{\"success\":" + (imperiHabAlarmController.arm(true) ? "true" : "false") + "}");
 			}
 			else if(url.toLowerCase().equals("/alarm-arm-home")){
-				writer.print("{\"success\":" + (imperiHabAlarmController.arm(false) ? "true" : "false") + "}");
-				return;				
+				writer.write("{\"success\":" + (imperiHabAlarmController.arm(false) ? "true" : "false") + "}");
 			}
 			else if(url.toLowerCase().equals("/alarm-disarm")){
 				String code = req.getParameter("code");
 				if(imperiHabAlarmController.disarm(code))
-					writer.print("{\"success\":true}");
+					writer.write("{\"success\":true}");
 				else
-					writer.print("{\"success\":false, \"error\":\"INVALID CODE\"}");
-				return;
+					writer.write("{\"success\":false, \"error\":\"INVALID CODE\"}");
 			}
-			
-			res.setCharacterEncoding("UTF-8");
-	        if (url.toLowerCase().equals("/rooms"))
-				writer.print(generateRoomsJson());
-	        else if(url.toLowerCase().startsWith("/devices/") && url.toLowerCase().contains("/histo"))
-        		writer.print(generateHistoryData(url));
-	        else if (url.toLowerCase().equals("/devices"))
-				writer.print(generateDevicesJson());	        
-	        else if(url.toLowerCase().equals("/system"))
-				writer.print("{\"id\":\"ImperiHAB\", \"apiversion\":\"1\"}");	        
-	        else if(url.toLowerCase().startsWith("/devices/"))
-				writer.print(performAction(url));
-	        
+			else{
+				//res.setCharacterEncoding("UTF-8");
+		        if (url.toLowerCase().equals("/rooms"))
+					writer.write(generateRoomsJson());
+		        else if(url.toLowerCase().startsWith("/devices/") && url.toLowerCase().contains("/histo"))
+	        		writer.write(generateHistoryData(url));
+		        else if (url.toLowerCase().equals("/devices"))
+					writer.write(generateDevicesJson());	        
+		        else if(url.toLowerCase().equals("/system"))
+					writer.write("{\"id\":\"ImperiHAB\", \"apiversion\":\"1\"}");	        
+		        else if(url.toLowerCase().startsWith("/devices/"))
+					writer.write(performAction(url));
+			}
+			writer.flush();	    
+			writer.close();    
+			if(gz != null){
+				gz.flush();
+				gz.close();
+			}
 		}		
 	}
 
