@@ -14,6 +14,7 @@ public class imperiHabBindingConfig implements BindingConfig {
 	String label;
 	String name;
 	State state;
+	String persist;
 	String wattsId; // used to include power readings on devices
 	ArrayList<String> parameters = new ArrayList<String>();		
 	ArrayList<imperiHabBindingConfigChildItem> childItems = new ArrayList<imperiHabBindingConfigChildItem>();

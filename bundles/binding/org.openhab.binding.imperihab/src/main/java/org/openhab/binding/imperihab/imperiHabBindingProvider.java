@@ -24,4 +24,5 @@ public interface imperiHabBindingProvider extends BindingProvider {
 
 	ArrayList<String> getDevices(HashMap<String, Item> items);
 
+	String getPersistService(String name);
 }

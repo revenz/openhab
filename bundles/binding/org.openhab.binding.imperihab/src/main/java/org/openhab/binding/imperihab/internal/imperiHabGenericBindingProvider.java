@@ -92,6 +92,8 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
 	   			config.type = value;
 			else if(key.equals("label"))
 	   			config.label = value;
+			else if(key.equals("persist"))
+   				config.persist = value;
 			else if(key.equals("watts"))
    				config.wattsId = value;
 		   
@@ -252,6 +254,15 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
 			ihbc.parameters.clear();
 		}	
 		return devices;
+	}
+	
+	public String getPersistService(String name){
+		for(BindingConfig bc : this.bindingConfigs.values()){
+			imperiHabBindingConfig ihbc = (imperiHabBindingConfig) bc;
+			if (ihbc.getName().equals(name))
+				return ihbc.persist;
+		}
+		return null;
 	}
 	
 	private int getStateAsInt(String state){
