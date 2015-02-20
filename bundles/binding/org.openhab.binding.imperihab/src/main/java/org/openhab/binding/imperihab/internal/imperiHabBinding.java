@@ -142,7 +142,7 @@ public class imperiHabBinding extends imperiHabBindingBase {
 			if(request.getHeader("Accept-Encoding") != null && request.getHeader("Accept-Encoding").contains("gzip"))
 			{
 				gz = new GZIPOutputStream(res.getOutputStream());
-				writer = new PrintWriter(gz);				
+				writer = new PrintWriter(new OutputStreamWriter(gz, "UTF-8"));				
 			}else{
 				writer = res.getWriter();
 			}

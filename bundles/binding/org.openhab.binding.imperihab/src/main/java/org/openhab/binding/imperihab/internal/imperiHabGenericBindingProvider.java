@@ -41,7 +41,7 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
 
 	/** The Constant logger. */
 	static final Logger logger = LoggerFactory.getLogger(imperiHabGenericBindingProvider.class);
-	static final Pattern rgxBindingConfig = Pattern.compile("\\G(\\w+)[\\s]*[=:][\\s]*([\\w' ]+)[\\s]*[,;]?");
+	static final Pattern rgxBindingConfig = Pattern.compile("\\G(\\w+)[\\s]*[=:][\\s]*([^;,:]+)[\\s]*[,;]?");
 	
 	void log(String message){
 		logger.debug("imperiHabGenericBindingProvider: " + message);
