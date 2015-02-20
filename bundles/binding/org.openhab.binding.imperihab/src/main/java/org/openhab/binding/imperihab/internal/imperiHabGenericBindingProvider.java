@@ -172,41 +172,42 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
 			}else if(ihbc.type.equals(DeviceTypes.TYPE_HUMIDITY)){
     			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
 					new Object[]{"key", "Value"},
-					new Object[]{"value", String.valueOf(getStateAsInt(item.getState().toString()))},
+					new Object[]{"value", String.valueOf(getStateAsDouble(item.getState().toString()))},
 					new Object[]{"unit", "%"},
 					new Object[]{"graphable", "true"}
 				));
 			}else if(ihbc.type.equals(DeviceTypes.TYPE_TEMPERATURE)){
+				String value = item.getState().toString();
     			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
 					new Object[]{"key", "Value"},
-					new Object[]{"value", String.valueOf(getStateAsDouble(item.getState().toString()))},
+					new Object[]{"value", String.valueOf(getStateAsDouble(value))},
 					new Object[]{"graphable", "true"}
 				));
 			}else if(ihbc.type.equals(DeviceTypes.TYPE_LUMINOSITY)){
     			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
 					new Object[]{"key", "Value"},
-					new Object[]{"value", String.valueOf(getStateAsInt(item.getState().toString()))},
+					new Object[]{"value", String.valueOf(getStateAsDouble(item.getState().toString()))},
 					new Object[]{"unit", "lux"},
 					new Object[]{"graphable", true}
 				));
 			}else if(ihbc.type.equals(DeviceTypes.TYPE_NOISE)){
     			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
 					new Object[]{"key", "Value"},
-					new Object[]{"value", String.valueOf(getStateAsInt(item.getState().toString()))},
+					new Object[]{"value", String.valueOf(getStateAsDouble(item.getState().toString()))},
 					new Object[]{"unit", "db"},
 					new Object[]{"graphable", true}
 				));				
 			}else if(ihbc.type.equals(DeviceTypes.TYPE_ELECTRICITY)){
     			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
 					new Object[]{"key", "ConsoTotal"},
-					new Object[]{"value", String.valueOf(getStateAsInt(item.getState().toString()))},
+					new Object[]{"value", String.valueOf(getStateAsDouble(item.getState().toString()))},
 					new Object[]{"unit", "kWh"},
 					new Object[]{"graphable", true}
 				));		
 			}else if(ihbc.type.equals(DeviceTypes.TYPE_PRESSURE)){
     			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
 					new Object[]{"key", "Value"},
-					new Object[]{"value", String.valueOf(getStateAsInt(item.getState().toString()))},
+					new Object[]{"value", String.valueOf(getStateAsDouble(item.getState().toString()))},
 					new Object[]{"unit", "mbar"},
 					new Object[]{"graphable", true}
 				));	  	
@@ -259,19 +260,12 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
 	public String getPersistService(String name){
 		for(BindingConfig bc : this.bindingConfigs.values()){
 			imperiHabBindingConfig ihbc = (imperiHabBindingConfig) bc;
-			if (ihbc.getName().equals(name))
+			if (ihbc.name.equals(name))
 				return ihbc.persist;
 		}
 		return null;
 	}
 	
-	private int getStateAsInt(String state){
-        int value = 0;
-        try {
-            value = Integer.parseInt(state);  // this can be set to UNINITIALIZED
-        } catch (Exception ex) { }
-        return value;
-	}
 	private double getStateAsDouble(String state){
 		double value = 0;
         try {
