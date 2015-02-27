@@ -75,6 +75,7 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
 	public void processBindingConfiguration(String context, Item item, String bindingConfig) throws BindingConfigParseException {
 		super.processBindingConfiguration(context, item, bindingConfig);
 		imperiHabBindingConfig config = new imperiHabBindingConfig();
+		config.invert = false;
 		
 		//parse bindingconfig here ...
 		log(item.getName() + " = " + bindingConfig);		
@@ -84,18 +85,20 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
 			String key = matcher.group(1).trim();
 			String value = matcher.group(2).trim();
 		   
-			if(key.equals("unit"))
+			if(key.equalsIgnoreCase("unit"))
 				config.unit = value;
-			else if(key.equals("room"))
+			else if(key.equalsIgnoreCase("room"))
 	   			config.room = value;
-			else if(key.equals("type"))					
+			else if(key.equalsIgnoreCase("type"))					
 	   			config.type = value;
-			else if(key.equals("label"))
+			else if(key.equalsIgnoreCase("label"))
 	   			config.label = value;
-			else if(key.equals("persist"))
+			else if(key.equalsIgnoreCase("persist"))
    				config.persist = value;
-			else if(key.equals("watts"))
+			else if(key.equalsIgnoreCase("watts"))
    				config.wattsId = value;
+			else if(key.equalsIgnoreCase("invert"))
+				config.invert = value.equals("1") || value.equalsIgnoreCase("true") || value.equalsIgnoreCase("on");
 		   
 			lastMatchPos = matcher.end();
 		}
@@ -162,12 +165,12 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
 				));
     			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
 					new Object[]{"key", "Status"},
-					new Object[]{"value", item.getStateAs(OnOffType.class) == OnOffType.ON ? "1" : "0" }
+					new Object[]{"value", item.getStateAs(OnOffType.class) == OnOffType.ON ? (ihbc.invert ? "0" : "1") : (ihbc.invert ? "1" : "0") }
 				));
 			}else if(ihbc.type.equals(DeviceTypes.TYPE_SWITCH) || ihbc.type.equals(DeviceTypes.TYPE_LOCK)){
     			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
 					new Object[]{"key", "Status"},
-					new Object[]{"value", item.getStateAs(OnOffType.class) == OnOffType.ON ? "1" : "0" }
+					new Object[]{"value", item.getStateAs(OnOffType.class) == OnOffType.ON ? (ihbc.invert ? "0" : "1") : (ihbc.invert ? "1" : "0") }
 				));
 			}else if(ihbc.type.equals(DeviceTypes.TYPE_HUMIDITY)){
     			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
