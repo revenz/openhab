@@ -16,6 +16,7 @@ public class imperiHabBindingConfig implements BindingConfig {
 	State state;
 	String persist;
 	String wattsId; // used to include power readings on devices
+	String accumulationId; // used for the rain sensor
 	boolean invert;
 	ArrayList<String> parameters = new ArrayList<String>();		
 	ArrayList<imperiHabBindingConfigChildItem> childItems = new ArrayList<imperiHabBindingConfigChildItem>();

@@ -97,6 +97,8 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
    				config.persist = value;
 			else if(key.equalsIgnoreCase("watts"))
    				config.wattsId = value;
+			else if(key.equalsIgnoreCase("accumulation"))
+				config.accumulationId = value;
 			else if(key.equalsIgnoreCase("invert"))
 				config.invert = value.equals("1") || value.equalsIgnoreCase("true") || value.equalsIgnoreCase("on");
 		   
@@ -224,7 +226,25 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
 					new Object[]{"key", "Tripped"},
 					new Object[]{"value", tripped ? "1" : "0" },
 					new Object[]{"lasttrip", ihbc.lastTripped == null ? 0 : ihbc.lastTripped.getTime()}
-				));	  	    			
+				));	  	    
+			}else if(ihbc.type.equals(DeviceTypes.TYPE_RAIN)){
+    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+					new Object[]{"key", "Value"},
+					new Object[]{"value", item.getState().toString() },
+					new Object[]{"unit", "mm/h" },
+					new Object[]{"graphable", "true" }
+				));
+    			if(ihbc.accumulationId != null){
+    				Item otherItem = items.get(ihbc.accumulationId);
+    				if(otherItem != null){
+		    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+	    					new Object[]{"key", "Accumulation"},
+	    					new Object[]{"graphable", true},
+	    					new Object[]{"unit", "mm"},
+	    					new Object[]{"value", String.valueOf(otherItem.getState().toString())}
+						));    					
+    				}
+    			}
 			}else {
     			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
 					new Object[]{"key", "Value"},

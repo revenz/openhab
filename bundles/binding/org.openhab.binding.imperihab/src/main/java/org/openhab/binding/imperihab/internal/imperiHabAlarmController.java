@@ -1,7 +1,5 @@
 package org.openhab.binding.imperihab.internal;
 
-import java.util.EventListener;
-
 import org.openhab.core.events.EventPublisher;
 import org.openhab.core.items.Item;
 import org.openhab.core.items.ItemNotFoundException;

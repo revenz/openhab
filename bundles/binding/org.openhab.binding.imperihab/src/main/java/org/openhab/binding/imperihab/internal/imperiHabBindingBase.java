@@ -30,6 +30,7 @@ public abstract class imperiHabBindingBase extends AbstractActiveBinding<imperiH
 	
 	protected final String SERVLET_NAME = "/imperihab";
 	protected String openHabDirectory = "";
+	protected String openHabInstanceName = "ImperiHAB";
 	
 	imperiHabListener listener;
 	
@@ -116,7 +117,9 @@ public abstract class imperiHabBindingBase extends AbstractActiveBinding<imperiH
 			logger.error("Invalid pincode for imperihab, must be in format [\\d]+, i.e all numbers");
 			imperiHabAlarmController.CODE_MASTER = "0000";
 		}
-				
+		
+		openHabInstanceName = getConfigStringValue(configuration, "name", "ImperiHAB");
+		
 		imperiHabAlarmController.AlarmAway_Switch = getConfigStringValue(configuration, "alarmAwaySwitch", "Alarm_Away");
 		imperiHabAlarmController.AlarmHome_Switch = getConfigStringValue(configuration, "alarmHomeSwitch", "Alarm_Home");
 		imperiHabAlarmController.AlarmCountdown_Number = getConfigStringValue(configuration, "alarmCountdownNumber", "Alarm_Countdown");
