@@ -31,7 +31,7 @@ public class imperiHabBindingConfig implements BindingConfig {
 	
 	String getDeviceString(){
 		return "{\"id\":\"" + this.name + "\",\"name\":\"" + (this.label != null ? this.label : this.name.replace("_", " ")) + "\",\"type\":\"" + 
-				this.type + "\",\"room\":\"" + this.room + "\",\"params\":[" + imperihabUtils.join(this.parameters, ",") + "]}";
+				this.type + "\",\"room\":\"" + this.room + "\",\"params\":[" + imperiHabUtils.join(this.parameters, ",") + "]}";
     }
 	
 	String generateParameters(){

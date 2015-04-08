@@ -32,8 +32,6 @@ public abstract class imperiHabBindingBase extends AbstractActiveBinding<imperiH
 	protected String openHabDirectory = "";
 	protected String openHabInstanceName = "ImperiHAB";
 	
-	imperiHabListener listener;
-	
 	protected HttpService httpService;		
 	public void setHttpService(HttpService httpService) { this.httpService = httpService; }
 	public void unsetHttpService(HttpService httpService) { this.httpService = null; }
@@ -42,24 +40,20 @@ public abstract class imperiHabBindingBase extends AbstractActiveBinding<imperiH
 	public void setEventPublisher(EventPublisher eventPublisher) {
 		this.eventPublisher = eventPublisher;
 		imperiHabAlarmController.eventPublisher = eventPublisher;
-		imperiHabListener.eventPublisher = this.eventPublisher;
 	}	
 	public void unsetEventPublisher(EventPublisher eventPublisher) {
 		this.eventPublisher = null;
 		imperiHabAlarmController.eventPublisher = null;
-		imperiHabListener.eventPublisher = null;
 	}
 	
 	protected ItemRegistry itemRegistry;
 	public void setItemRegistry(ItemRegistry itemRegistry) {
 		this.itemRegistry = itemRegistry;
 		imperiHabAlarmController.itemRegistry = this.itemRegistry;
-		imperiHabListener.itemRegistry = this.itemRegistry;
 	}
 	public void unsetItemRegistry(ItemRegistry itemRegistry) {
 		this.itemRegistry = null;
 		imperiHabAlarmController.itemRegistry = null;
-		imperiHabListener.itemRegistry = null;
 	}
 	
 	/**

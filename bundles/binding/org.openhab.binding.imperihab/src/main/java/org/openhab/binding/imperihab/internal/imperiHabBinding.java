@@ -64,8 +64,6 @@ public class imperiHabBinding extends imperiHabBindingBase {
 		logger.debug("imperihab activate called!");
 		this.bundleContext = bundleContext;
 
-		if(listener == null)
-			listener = new imperiHabListener(logger);
 		this.openHabDirectory =  System.getProperty("user.dir");
 		configGo(configuration);
 
@@ -224,7 +222,7 @@ public class imperiHabBinding extends imperiHabBindingBase {
         	}
         }
         
-        return "{\"values\":[" + imperihabUtils.join(data, ",") + "]}";
+        return "{\"values\":[" + imperiHabUtils.join(data, ",") + "]}";
 	}
 
 	String performAction(String requestUrl){
@@ -278,7 +276,7 @@ public class imperiHabBinding extends imperiHabBindingBase {
 		for (imperiHabBindingProvider provider : this.providers) {			
 			devices.addAll(provider.getDevices(items));
 		}		
-		return "{\"devices\":[" + imperihabUtils.join(devices,  ",")  + "]}";
+		return "{\"devices\":[" + imperiHabUtils.join(devices,  ",")  + "]}";
 	}
 	
 	String getPersistService(String name){

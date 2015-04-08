@@ -220,8 +220,7 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
 				boolean tripped = item.getStateAs(OpenClosedType.class) == OpenClosedType.OPEN;
 				if(tripped && !ihbc.isTripped){
 					ihbc.lastTripped = new Date();
-				}
-				
+				}				
     			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
 					new Object[]{"key", "Tripped"},
 					new Object[]{"value", tripped ? "1" : "0" },
@@ -241,10 +240,12 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
 	    					new Object[]{"key", "Accumulation"},
 	    					new Object[]{"graphable", true},
 	    					new Object[]{"unit", "mm"},
-	    					new Object[]{"value", String.valueOf(otherItem.getState().toString())}
+	    					new Object[]{"value", otherItem.getState().toString()}
 						));    					
     				}
     			}
+			}else if(ihbc.type.equals(DeviceTypes.TYPE_SCENE)){
+				// only value here is last run, so skip
 			}else {
     			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
 					new Object[]{"key", "Value"},

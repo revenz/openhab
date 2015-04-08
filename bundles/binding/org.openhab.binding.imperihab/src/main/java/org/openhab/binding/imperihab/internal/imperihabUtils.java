@@ -3,7 +3,7 @@ package org.openhab.binding.imperihab.internal;
 import java.util.Collection;
 import java.util.Iterator;
 
-public class imperihabUtils {
+public class imperiHabUtils {
 	
 	static String join(Collection<?> s, String delimiter) {
 	     StringBuilder builder = new StringBuilder();
