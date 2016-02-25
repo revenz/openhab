@@ -16,6 +16,9 @@
 
 package net.wimpi.modbus.net;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import net.wimpi.modbus.Modbus;
 import net.wimpi.modbus.ModbusCoupler;
 import net.wimpi.modbus.ModbusIOException;
@@ -34,98 +37,97 @@ import net.wimpi.modbus.util.SerialParameters;
  */
 public class ModbusSerialListener {
 
-  //Members
-  private boolean m_Listening;               	//Flag for toggling listening/!listening
-  private SerialConnection m_SerialCon;
-  private static int c_RequestCounter = 0;          //counter for amount of requests
+    private static final Logger logger = LoggerFactory.getLogger(ModbusSerialListener.class);
+    // Members
+    private boolean m_Listening; // Flag for toggling listening/!listening
+    private SerialConnection m_SerialCon;
+    private static int c_RequestCounter = 0; // counter for amount of requests
 
-  /**
-   * Constructs a new <tt>ModbusSerialListener</tt> instance.
-   *
-   * @param params a <tt>SerialParameters</tt> instance.
-   */
-  public ModbusSerialListener(SerialParameters params) {
-    m_SerialCon = new SerialConnection(params);
-    //System.out.println("Created connection.");
-    listen();
-  }//constructor
+    /**
+     * Constructs a new <tt>ModbusSerialListener</tt> instance.
+     *
+     * @param params a <tt>SerialParameters</tt> instance.
+     */
+    public ModbusSerialListener(SerialParameters params) {
+        m_SerialCon = new SerialConnection(params);
+        logger.trace("Created connection");
+        listen();
+    }// constructor
 
-  /**
-   * Listen to incoming messages.
-   */
-  private void listen() {
-    try {
-      m_Listening = true;
-      m_SerialCon.open();
-      //System.out.println("Opened Serial connection.");
-      ModbusTransport transport = m_SerialCon.getModbusTransport();
-      do {
-        if (m_Listening) {
-          try {
-            //1. read the request
-            ModbusRequest request = transport.readRequest();
-            ModbusResponse response = null;
+    /**
+     * Listen to incoming messages.
+     */
+    private void listen() {
+        try {
+            m_Listening = true;
+            m_SerialCon.open();
+            logger.trace("Opened Serial connection.");
 
-            //test if Process image exists
-            if (ModbusCoupler.getReference().getProcessImage() == null) {
-              response =
-                  request.createExceptionResponse(Modbus.ILLEGAL_FUNCTION_EXCEPTION);
-            } else {
-              response = request.createResponse();
-            }
+            ModbusTransport transport = m_SerialCon.getModbusTransport();
+            do {
+                if (m_Listening) {
+                    try {
+                        // 1. read the request
+                        ModbusRequest request = transport.readRequest();
+                        ModbusResponse response = null;
 
-            if (Modbus.debug)
-              System.out.println("Request:" + request.getHexMessage());
-            if (Modbus.debug)
-              System.out.println("Response:" + response.getHexMessage());
+                        // test if Process image exists
+                        if (ModbusCoupler.getReference().getProcessImage() == null) {
+                            response = request.createExceptionResponse(Modbus.ILLEGAL_FUNCTION_EXCEPTION);
+                        } else {
+                            response = request.createResponse();
+                        }
 
-            transport.writeMessage(response);
+                        logger.debug("Request:{}", request.getHexMessage());
+                        logger.debug("Response:{}", response.getHexMessage());
 
-            count();
-          } catch (ModbusIOException ex) {
-            ex.printStackTrace();
-            continue;
-          }
+                        transport.writeMessage(response);
+
+                        count();
+                    } catch (ModbusIOException ex) {
+                        ex.printStackTrace();
+                        continue;
+                    }
+                }
+                // ensure nice multithreading behaviour on specific platforms
+
+            } while (true);
+
+        } catch (Exception e) {
+            // FIXME: this is a major failure, how do we handle this
+            e.printStackTrace();
         }
-        //ensure nice multithreading behaviour on specific platforms
+    }// listen
 
-      } while (true);
+    /**
+     * Sets the listening flag of this <tt>ModbusTCPListener</tt>.
+     *
+     * @param b true if listening (and accepting incoming connections),
+     *            false otherwise.
+     */
+    public void setListening(boolean b) {
+        m_Listening = b;
+    }// setListening
 
-    } catch (Exception e) {
-      //FIXME: this is a major failure, how do we handle this
-      e.printStackTrace();
-    }
-  }//listen
+    /**
+     * Tests if this <tt>ModbusTCPListener</tt> is listening
+     * and accepting incoming connections.
+     *
+     * @return true if listening (and accepting incoming connections),
+     *         false otherwise.
+     */
+    public boolean isListening() {
+        return m_Listening;
+    }// isListening
 
-  /**
-   * Sets the listening flag of this <tt>ModbusTCPListener</tt>.
-   *
-   * @param b true if listening (and accepting incoming connections),
-   *        false otherwise.
-   */
-  public void setListening(boolean b) {
-    m_Listening = b;
-  }//setListening
+    private void count() {
+        c_RequestCounter++;
+        if (c_RequestCounter == REQUESTS_TOGC) {
+            System.gc();
+            c_RequestCounter = 0;
+        }
+    }// count
 
-  /**
-   * Tests if this <tt>ModbusTCPListener</tt> is listening
-   * and accepting incoming connections.
-   *
-   * @return true if listening (and accepting incoming connections),
-   *          false otherwise.
-   */
-  public boolean isListening() {
-    return m_Listening;
-  }//isListening
+    private static final int REQUESTS_TOGC = 15;
 
-  private void count() {
-    c_RequestCounter++;
-    if (c_RequestCounter == REQUESTS_TOGC) {
-      System.gc();
-      c_RequestCounter = 0;
-    }
-  }//count
-
-  private static final int REQUESTS_TOGC = 15;
-
-}//class ModbusTCPListener
+}// class ModbusTCPListener

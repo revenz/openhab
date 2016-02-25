@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2015, openHAB.org and others.
+ * Copyright (c) 2010-2016, openHAB.org and others.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -9,33 +9,37 @@
 package org.openhab.binding.pilight.internal.communication;
 
 /**
- * This object is sent to pilight right after the initial connection. It describes what kind of client we want to be.      
- * 
+ * This object is sent to pilight right after the initial connection. It describes what kind of client we want to be.
+ *
  * @author Jeroen Idserda
  * @since 1.0
  */
 public class Identification {
-	
-	public static String CLIENT_GUI = "client gui";
-	public static String REQUEST_CONFIG = "request config";
-	public static String ACCEPTED = "accept client";
-	public static String REJECTED = "reject client";
 
-	private String message;
-	
-	public Identification() {
-		
-	}
-	
-	public Identification (String message) {
-		this.message = message;
-	}
-	
-	public void setMessage(String message) {
-		this.message = message;
-	}
+    public static String ACTION_IDENTIFY = "identify";
 
-	public String getMessage() {
-		return message;
-	}
+    private String action;
+
+    private Options options;
+
+    public Identification() {
+        this.action = ACTION_IDENTIFY;
+    }
+
+    public String getAction() {
+        return action;
+    }
+
+    public void setAction(String action) {
+        this.action = action;
+    }
+
+    public Options getOptions() {
+        return options;
+    }
+
+    public void setOptions(Options options) {
+        this.options = options;
+    }
+
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2015, openHAB.org and others.
+ * Copyright (c) 2010-2016, openHAB.org and others.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -8,71 +8,70 @@
  */
 package org.openhab.binding.pilight.internal.communication;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * A Status message is received when a device in pilight changes state.     
- * 
- * {@link http://www.pilight.org/development/api/#receiver}
- * 
+ * A Status message is received when a device in pilight changes state.
+ *
  * @author Jeroen Idserda
  * @since 1.0
  */
 public class Status {
-	
-	private String origin;
-	
-	private String type;
-	
-	private String uuid;
-	
-	private Map<String, List<String>> devices = new HashMap<String, List<String>>();
-	
-	private Map<String, String> values = new HashMap<String, String>();
-	
-	public Status() {
-	}
 
-	public String getOrigin() {
-		return origin;
-	}
+    private String origin;
 
-	public void setOrigin(String origin) {
-		this.origin = origin;
-	}
+    private Integer type;
 
-	public String getType() {
-		return type;
-	}
+    private String uuid;
 
-	public void setType(String type) {
-		this.type = type;
-	}
+    private List<String> devices = new ArrayList<String>();
 
-	public String getUuid() {
-		return uuid;
-	}
+    private Map<String, String> values = new HashMap<String, String>();
 
-	public void setUuid(String uuid) {
-		this.uuid = uuid;
-	}
+    public Status() {
+    }
 
-	public Map<String, List<String>> getDevices() {
-		return devices;
-	}
+    public String getOrigin() {
+        return origin;
+    }
 
-	public void setDevices(Map<String, List<String>> devices) {
-		this.devices = devices;
-	}
+    public void setOrigin(String origin) {
+        this.origin = origin;
+    }
 
-	public Map<String, String> getValues() {
-		return values;
-	}
+    public Integer getType() {
+        return type;
+    }
 
-	public void setValues(Map<String, String> values) {
-		this.values = values;
-	}
-	
+    public void setType(Integer type) {
+        this.type = type;
+    }
+
+    public String getUuid() {
+        return uuid;
+    }
+
+    public void setUuid(String uuid) {
+        this.uuid = uuid;
+    }
+
+    public List<String> getDevices() {
+        return devices;
+    }
+
+    public void setDevices(List<String> devices) {
+        this.devices = devices;
+    }
+
+    public Map<String, String> getValues() {
+        return values;
+    }
+
+    public void setValues(Map<String, String> values) {
+        this.values = values;
+    }
+
 }
