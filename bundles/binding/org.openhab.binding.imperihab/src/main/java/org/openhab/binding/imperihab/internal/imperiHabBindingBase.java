@@ -123,6 +123,7 @@ public abstract class imperiHabBindingBase extends AbstractActiveBinding<imperiH
 		
 		imperiHabAlarmController.ArmingCountdown  = getConfigIntValue(configuration, "armingCountdown", 45, 1, 600);
 		imperiHabAlarmController.IntrusionCountdown  = getConfigIntValue(configuration, "intrusionCountdown", 30, 1, 600);
+		imperiHabGenericBindingProvider.DEFAULT_TEMPERATURE_UNIT = getConfigStringValue(configuration, "tempunit", "C");
 
 		log("imperiHabAlarmPanel.slideShowDir: " + imperiHabAlarmPanel.slideShowDir);
 		log("imperiHabAlarmController.CODE_MASTER: " + imperiHabAlarmController.CODE_MASTER);

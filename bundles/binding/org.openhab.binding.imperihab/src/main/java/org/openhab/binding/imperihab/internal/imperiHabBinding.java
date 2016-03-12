@@ -14,9 +14,16 @@ import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
+import java.net.URL;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.sql.Date;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -24,12 +31,13 @@ import java.util.Hashtable;
 import java.util.Map;
 import java.util.zip.GZIPOutputStream;
 
+import org.apache.commons.lang.StringUtils;
 import org.joda.time.DateTime;
 import org.openhab.binding.imperihab.imperiHabBindingProvider;
-
 import org.openhab.core.items.Item;
 import org.openhab.core.items.ItemNotFoundException;
 import org.openhab.core.library.types.OnOffType;
+import org.openhab.core.library.types.StringType;
 import org.openhab.core.library.types.PercentType;
 import org.openhab.core.persistence.HistoricItem;
 import org.openhab.core.persistence.extensions.PersistenceExtensions;
@@ -131,6 +139,11 @@ public class imperiHabBinding extends imperiHabBindingBase {
 				imperiHabAlarmPanel.returnImage(res, url.substring("/ss-image/".length()));
 				return;
 			}
+			else if(url.toLowerCase().startsWith("/camera/")){
+				String cameraName = url.substring("/camera/".length());
+				cameraImage(res, cameraName);
+				return;
+			}
 			PrintWriter writer = null;
 			GZIPOutputStream gz = null;
 			if(request.getHeader("Accept-Encoding") != null && request.getHeader("Accept-Encoding").contains("gzip"))
@@ -170,12 +183,16 @@ public class imperiHabBinding extends imperiHabBindingBase {
 			}
 			else{
 				//res.setCharacterEncoding("UTF-8");
+				response.setHeader("Content-type", "application/json; charset=utf-8");
 		        if (url.toLowerCase().equals("/rooms"))
 					writer.write(generateRoomsJson());
 		        else if(url.toLowerCase().startsWith("/devices/") && url.toLowerCase().contains("/histo"))
 	        		writer.write(generateHistoryData(url));
-		        else if (url.toLowerCase().equals("/devices"))
-					writer.write(generateDevicesJson());	        
+		        else if (url.toLowerCase().equals("/devices")){
+					String host = ((HttpServletRequest) req).getRequestURL().toString();
+					host = host.substring(0,  host.indexOf(("/devices")));
+					writer.write(generateDevicesJson(host));	   
+		        }
 		        else if(url.toLowerCase().equals("/system"))
 					writer.write("{\"id\":\"" + openHabInstanceName + "\", \"apiversion\":\"1\"}");	        
 		        else if(url.toLowerCase().startsWith("/devices/"))
@@ -240,6 +257,24 @@ public class imperiHabBinding extends imperiHabBindingBase {
             	eventPublisher.postCommand(deviceId, PercentType.valueOf(actionParam));
                 return "ok";
             }
+            else if (actionName.equalsIgnoreCase("setSetPoint")){            	
+            	eventPublisher.postCommand(deviceId, PercentType.valueOf(actionParam));
+                return "ok";
+            }
+            else if (actionName.equalsIgnoreCase("setMode")){
+            	String targetItemId = imperiHabGenericBindingProvider.ItemLookups.get(deviceId);
+            	if(StringUtils.isBlank(targetItemId)){
+            		log("Failed to find targetItemId for device: " + deviceId);
+            		return "No item id found.";
+            	}
+            	Item item = findItem(targetItemId);
+            	if(item == null){
+            		log("Failed to find targetItem from Id: " + targetItemId);
+            		return "not found";
+            	}
+            	eventPublisher.postCommand(targetItemId, new StringType(actionParam));
+                return "ok";
+            }
         }catch (Exception ex){
         	log("Error: "+ ex.getMessage());
         }
@@ -268,15 +303,22 @@ public class imperiHabBinding extends imperiHabBindingBase {
         return sBuilder.toString();
 	}
 	
-	String generateDevicesJson(){		
+	String generateDevicesJson(String hostUrl){		
 		ArrayList<String> devices = new ArrayList<String>();
 		HashMap<String, Item> items = new HashMap<String, Item>();
 		for(Item item : itemRegistry.getItems())
 			items.put(item.getName(), item);
 		for (imperiHabBindingProvider provider : this.providers) {			
-			devices.addAll(provider.getDevices(items));
+			devices.addAll(provider.getDevices(hostUrl, items));
 		}		
-		return "{\"devices\":[" + imperiHabUtils.join(devices,  ",")  + "]}";
+		return "{\"devices\":[\n\t" + imperiHabUtils.join(devices,  ",\n\t")  + "\n]}";
+	}
+	
+	Item findItem(String name){
+		for(Item item : itemRegistry.getItems())
+			if(name.equals(item.getName()))
+				return item;
+		return null;
 	}
 	
 	String getPersistService(String name){
@@ -286,5 +328,34 @@ public class imperiHabBinding extends imperiHabBindingBase {
 				return persistService;
 		}		
 		return null;
+	}
+	
+
+	public static void cameraImage(ServletResponse response, String cameraName)  {
+		String cameraUrl = imperiHabGenericBindingProvider.ItemLookups.get(cameraName);
+		
+		logger.debug("imerpihab2: returning image: " + cameraUrl);
+		try {
+			response.setContentType("image/jpeg");			
+			
+			URL url = new URL(cameraUrl);
+	        InputStream is = url.openStream();
+			OutputStream out = response.getOutputStream();
+
+	        byte[] b = new byte[2048];
+	        int length;
+
+	        while ((length = is.read(b)) != -1) {
+		        out.write(b, 0, length);
+	        }
+
+	        is.close();
+	        out.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			logger.debug("imperihab2: error: " + e.getMessage());
+			e.printStackTrace();
+			
+		}
 	}
 }

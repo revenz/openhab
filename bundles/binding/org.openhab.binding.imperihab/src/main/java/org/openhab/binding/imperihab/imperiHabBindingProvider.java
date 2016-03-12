@@ -22,7 +22,7 @@ public interface imperiHabBindingProvider extends BindingProvider {
 
 	ArrayList<String> getRooms();
 
-	ArrayList<String> getDevices(HashMap<String, Item> items);
+	ArrayList<String> getDevices(String hostUrl, HashMap<String, Item> items);
 
 	String getPersistService(String name);
 }
