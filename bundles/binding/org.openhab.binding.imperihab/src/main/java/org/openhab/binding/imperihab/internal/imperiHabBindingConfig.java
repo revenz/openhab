@@ -26,15 +26,17 @@ public class imperiHabBindingConfig implements BindingConfig {
 	String remotejpegurl;
 	String remotemjpegurl;
 	String proxyjpegurl;
+	String hygroId;
 	float step;
+	boolean stopable;
+	boolean pulseable;
 	float minVal;
 	float maxVal;
 	String[] availableModes;
 	boolean invert;
 	ArrayList<String> parameters = new ArrayList<String>();		
 	ArrayList<imperiHabBindingConfigChildItem> childItems = new ArrayList<imperiHabBindingConfigChildItem>();
-	
-	
+		
 	boolean isTripped = false;
 	Date lastTripped;
 	

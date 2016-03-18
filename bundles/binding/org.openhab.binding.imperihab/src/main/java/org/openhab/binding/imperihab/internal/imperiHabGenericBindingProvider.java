@@ -107,6 +107,10 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
    				config.persist = value;
 			else if(key.equalsIgnoreCase("watts"))
    				config.wattsId = value;
+			else if(key.equalsIgnoreCase("hygroId")){
+				config.hygroId = value;
+				config.type = DeviceTypes.TYPE_TEMP_HYGRO;
+			}
 			else if(key.equalsIgnoreCase("accumulation"))
 				config.accumulationId = value;
 			else if(key.equalsIgnoreCase("invert"))
@@ -119,6 +123,10 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
 				config.currentTempId = value;
 			else if(key.equalsIgnoreCase("step"))
 				config.step = tryParseFloat(value);
+			else if(key.equalsIgnoreCase("stopable"))
+				config.stopable = tryParseBoolean(value);
+			else if(key.equalsIgnoreCase("pulseable"))
+				config.pulseable = tryParseBoolean(value);
 			else if(key.equalsIgnoreCase("minval"))
 				config.minVal = tryParseFloat(value);
 			else if(key.equalsIgnoreCase("maxval"))
@@ -321,6 +329,19 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
 					new Object[]{"key", "Status"},
 					new Object[]{"value", item.getStateAs(OnOffType.class) == OnOffType.ON ? (ihbc.invert ? "0" : "1") : (ihbc.invert ? "1" : "0") }
 				));
+			}else if(ihbc.type.equals(DeviceTypes.TYPE_SHUTTER)){
+    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+					new Object[]{"key", "Level"},
+					new Object[]{"value", String.valueOf(item.getState())}
+				));
+    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+					new Object[]{"key", "stopable"},
+					new Object[]{"value", ihbc.stopable ? "1" : "0" }
+				));
+    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+					new Object[]{"key", "pulseable"},
+					new Object[]{"value", ihbc.pulseable ? "1" : "0" }
+				));
 			}else if(ihbc.type.equals(DeviceTypes.TYPE_SWITCH) || ihbc.type.equals(DeviceTypes.TYPE_LOCK)){
     			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
 					new Object[]{"key", "Status"},
@@ -333,6 +354,25 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
 					new Object[]{"unit", "%"},
 					new Object[]{"graphable", "true"}
 				));
+			}else if(ihbc.type.equals(DeviceTypes.TYPE_TEMP_HYGRO)){
+				String value = item.getState().toString();	
+    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+					new Object[]{"key", "temp"},
+					new Object[]{"value", String.valueOf(getStateAsDouble(value))},
+					new Object[]{"graphable", "true"},
+					new Object[]{"unit", getTempUnit(ihbc.unit)}
+				));
+    			if(StringUtils.isNotBlank(ihbc.hygroId)){
+    				Item otherItem = items.get(ihbc.hygroId);
+    				if(otherItem != null){
+		    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+							new Object[]{"key", "hygro"},
+							new Object[]{"value", String.valueOf(getStateAsDouble(otherItem.getState().toString()))},
+							new Object[]{"graphable", "true"},
+							new Object[]{"unit", "%"}
+						));
+    				}
+    			}
 			}else if(ihbc.type.equals(DeviceTypes.TYPE_TEMPERATURE)){
 				String value = item.getState().toString();	
     			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
@@ -457,6 +497,12 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
         	result = Float.parseFloat(value);
         } catch (Exception ex) { }
         return result;
+	}
+	
+	private boolean tryParseBoolean(String value){
+		if(value == null || StringUtils.isBlank(value))
+			return false;
+		return value.equalsIgnoreCase("1") || value.equalsIgnoreCase("true") || value.equalsIgnoreCase("yes"); 
 	}
 	
 	private String getTempUnit(String unit){

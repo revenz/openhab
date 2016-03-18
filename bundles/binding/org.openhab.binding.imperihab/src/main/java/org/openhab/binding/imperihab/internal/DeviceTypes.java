@@ -14,6 +14,7 @@ public class DeviceTypes {
 	static final String TYPE_CO2 = "DevCO2";
 	static final String TYPE_CAMERA = "DevCamera";
 	static final String TYPE_TEMPERATURE = "DevTemperature";
+	static final String TYPE_TEMP_HYGRO = "DevTempHygro";
 	static final String TYPE_ELECTRICITY = "DevElectricity";
 	static final String TYPE_LUMINOSITY = "DevLuminosity";
 	static final String TYPE_LOCK = "DevLock";

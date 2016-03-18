@@ -36,7 +36,9 @@ import org.joda.time.DateTime;
 import org.openhab.binding.imperihab.imperiHabBindingProvider;
 import org.openhab.core.items.Item;
 import org.openhab.core.items.ItemNotFoundException;
+import org.openhab.core.library.types.IncreaseDecreaseType;
 import org.openhab.core.library.types.OnOffType;
+import org.openhab.core.library.types.StopMoveType;
 import org.openhab.core.library.types.StringType;
 import org.openhab.core.library.types.PercentType;
 import org.openhab.core.persistence.HistoricItem;
@@ -259,6 +261,18 @@ public class imperiHabBinding extends imperiHabBindingBase {
             }
             else if (actionName.equalsIgnoreCase("setSetPoint")){            	
             	eventPublisher.postCommand(deviceId, PercentType.valueOf(actionParam));
+                return "ok";
+            }
+            else if (actionName.equalsIgnoreCase("stopShutter")){            	
+            	eventPublisher.postCommand(deviceId, StopMoveType.STOP);
+                return "ok";
+            }
+            else if (actionName.equalsIgnoreCase("pulseShutter")){            
+            	if(actionParam.equalsIgnoreCase("up"))
+            		eventPublisher.postCommand(deviceId, IncreaseDecreaseType.INCREASE);
+            	else if(actionParam.equalsIgnoreCase("down"))
+            		eventPublisher.postCommand(deviceId, IncreaseDecreaseType.DECREASE);
+            		
                 return "ok";
             }
             else if (actionName.equalsIgnoreCase("setMode")){

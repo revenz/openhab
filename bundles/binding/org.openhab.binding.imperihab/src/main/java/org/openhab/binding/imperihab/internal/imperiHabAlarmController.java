@@ -7,6 +7,7 @@ import org.openhab.core.items.ItemRegistry;
 import org.openhab.core.library.types.DecimalType;
 import org.openhab.core.library.types.OnOffType;
 import org.openhab.core.library.types.OpenClosedType;
+import org.openhab.core.library.types.StringType;
 import org.openhab.core.types.Command;
 import org.openhab.core.types.State;
 import org.slf4j.Logger;
@@ -26,7 +27,7 @@ public class imperiHabAlarmController {
 	public static String AlarmState_Number = "Alarm_State";
 	public static String Group_AlarmAway = "AlarmAway";
 	public static String Group_AlarmHome = "AlarmHome";
-	public static String AlarmLastTrippedItem = null;
+	public static String AlarmLastTrippedItem = "AlarmLastTrippedItem";
 	
 	public static String CODE_MASTER = "0000";
 	
@@ -161,9 +162,7 @@ public class imperiHabAlarmController {
 			setState(STATE_INTRUSION_DETECTED);
 			runArming(false);
 			if(AlarmLastTrippedItem != null)
-			{				
-				//eventPublisher.postUpdate(AlarmLastTrippedItem, new State(itemName));
-			}
+				eventPublisher.postUpdate(AlarmLastTrippedItem, new StringType(itemName));
 			
 		} catch (ItemNotFoundException e) {
 			// TODO Auto-generated catch block
