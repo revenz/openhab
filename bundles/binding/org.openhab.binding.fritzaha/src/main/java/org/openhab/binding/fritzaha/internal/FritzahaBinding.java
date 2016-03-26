@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2016, openHAB.org and others.
+ * Copyright (c) 2010-2015, openHAB.org and others.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -33,261 +33,253 @@ import org.slf4j.LoggerFactory;
 /**
  * This class facilitates the communication between AVM home automation devices
  * and the openHAB event bus
- *
+ * 
  * @author Christian Brauers
  * @since 1.3.0
  */
-public class FritzahaBinding extends AbstractActiveBinding<FritzahaBindingProvider>implements ManagedService {
+public class FritzahaBinding extends AbstractActiveBinding<FritzahaBindingProvider> implements ManagedService {
 
-    private static final Logger logger = LoggerFactory.getLogger(FritzahaBinding.class);
+	private static final Logger logger = LoggerFactory.getLogger(FritzahaBinding.class);
 
-    /**
-     * the refresh interval which is used to poll values from the fritzaha
-     * server (optional, defaults to 10000ms)
-     */
-    private long refreshInterval = 10000;
+	/**
+	 * the refresh interval which is used to poll values from the fritzaha
+	 * server (optional, defaults to 10000ms)
+	 */
+	private long refreshInterval = 10000;
+		
+	private static final Pattern DEVICES_PATTERN = Pattern.compile("^(.*?)\\.(host|port|protocol|username|password|synctimeout|asynctimeout)$");
 
-    private static final Pattern DEVICES_PATTERN = Pattern
-            .compile("^(.*?)\\.(host|port|protocol|username|password|synctimeout|asynctimeout)$");
+	protected Map<String, Host> hostCache = new HashMap<String, Host>();
 
-    protected Map<String, Host> hostCache = new HashMap<String, Host>();
+	@Override
+	public void setEventPublisher(EventPublisher eventPublisher) {
+		super.setEventPublisher(eventPublisher);
+		for (Host currentHostData : hostCache.values()) {
+			currentHostData.eventPublisher = eventPublisher;
+			FritzahaWebInterface currentHost = currentHostData.getConnection();
+			currentHost.setEventPublisher(eventPublisher);
+		}
+	}
 
-    @Override
-    public void setEventPublisher(EventPublisher eventPublisher) {
-        super.setEventPublisher(eventPublisher);
-        for (Host currentHostData : hostCache.values()) {
-            currentHostData.eventPublisher = eventPublisher;
-            FritzahaWebInterface currentHost = currentHostData.getConnection();
-            currentHost.setEventPublisher(eventPublisher);
-        }
-    }
+	@Override
+	public void unsetEventPublisher(EventPublisher eventPublisher) {
+		super.unsetEventPublisher(eventPublisher);
+		for (Host currentHostData : hostCache.values()) {
+			currentHostData.eventPublisher = null;
+			FritzahaWebInterface currentHost = currentHostData.getConnection();
+			currentHost.unsetEventPublisher(eventPublisher);
+		}
+	}
 
-    @Override
-    public void unsetEventPublisher(EventPublisher eventPublisher) {
-        super.unsetEventPublisher(eventPublisher);
-        for (Host currentHostData : hostCache.values()) {
-            currentHostData.eventPublisher = null;
-            FritzahaWebInterface currentHost = currentHostData.getConnection();
-            currentHost.unsetEventPublisher(eventPublisher);
-        }
-    }
+	public FritzahaBinding() {
+	}
 
-    public FritzahaBinding() {
-    }
+	public void activate() {
+	}
 
-    @Override
-    public void activate() {
-    }
+	public void deactivate() {
+	}
 
-    @Override
-    public void deactivate() {
-    }
+	/**
+	 * @{inheritDoc
+	 */
+	@Override
+	protected long getRefreshInterval() {
+		return refreshInterval;
+	}
 
-    /**
-     * @{inheritDoc
-     */
-    @Override
-    protected long getRefreshInterval() {
-        return refreshInterval;
-    }
+	/**
+	 * @{inheritDoc
+	 */
+	@Override
+	protected String getName() {
+		return "FritzAHA Refresh Service";
+	}
 
-    /**
-     * @{inheritDoc
-     */
-    @Override
-    protected String getName() {
-        return "FritzAHA Refresh Service";
-    }
+	/**
+	 * @{inheritDoc
+	 */
+	@Override
+	protected void execute() {
+		logger.debug("execute() method is called!");
+		for (FritzahaBindingProvider currentProvider : providers) {
+			for (String currentItem : currentProvider.getItemNames()) {
+				FritzahaDevice currentDevice = currentProvider.getDeviceConfig(currentItem);
+				String currentHostId = currentDevice.getHost();
+				if (!hostCache.containsKey(currentHostId))
+					continue;
+				FritzahaWebInterface currentHost = hostCache.get(currentHostId).getConnection();
+				if (currentDevice instanceof FritzahaSwitchedOutlet) {
+					FritzahaSwitchedOutlet currentSwitch = (FritzahaSwitchedOutlet) currentDevice;
+					currentSwitch.updateSwitchState(currentItem, currentHost);
+				} else if (currentDevice instanceof FritzahaOutletMeter) {
+					FritzahaOutletMeter currentMeter = (FritzahaOutletMeter) currentDevice;
+					currentMeter.updateMeterValue(currentItem, currentHost);
+				}
+			}
+		}
+	}
 
-    /**
-     * @{inheritDoc
-     */
-    @Override
-    protected void execute() {
-        logger.debug("execute() method is called!");
-        for (FritzahaBindingProvider currentProvider : providers) {
-            for (String currentItem : currentProvider.getItemNames()) {
-                FritzahaDevice currentDevice = currentProvider.getDeviceConfig(currentItem);
-                String currentHostId = currentDevice.getHost();
-                if (!hostCache.containsKey(currentHostId)) {
-                    continue;
-                }
-                FritzahaWebInterface currentHost = hostCache.get(currentHostId).getConnection();
-                if (currentDevice instanceof FritzahaSwitchedOutlet) {
-                    FritzahaSwitchedOutlet currentSwitch = (FritzahaSwitchedOutlet) currentDevice;
-                    currentSwitch.updateSwitchState(currentItem, currentHost);
-                } else if (currentDevice instanceof FritzahaOutletMeter) {
-                    FritzahaOutletMeter currentMeter = (FritzahaOutletMeter) currentDevice;
-                    currentMeter.updateMeterValue(currentItem, currentHost);
-                }
-            }
-        }
-    }
+	/**
+	 * @{inheritDoc
+	 */
+	@Override
+	protected void internalReceiveCommand(String itemName, Command command) {
+		logger.debug("internalReceiveCommand() is called!");
+		FritzahaBindingProvider commandProvider = null;
+		FritzahaSwitchedOutlet switchDevice = null;
+		for (FritzahaBindingProvider currentProvider : providers) {
+			if (!currentProvider.getItemNames().contains(itemName))
+				continue;
+			FritzahaDevice device = currentProvider.getDeviceConfig(itemName);
+			if (!(device instanceof FritzahaSwitchedOutlet))
+				continue;
+			switchDevice = (FritzahaSwitchedOutlet) device;
+			commandProvider = currentProvider;
+			break;
+		}
+		if (commandProvider == null || switchDevice == null) {
+			logger.error("No provider found for item " + itemName);
+			return;
+		}
+		if (command instanceof OnOffType) {
+			String deviceHostID = switchDevice.getHost();
+			Host host = hostCache.get(deviceHostID);
+			if(host!=null) {
+				FritzahaWebInterface deviceHost = host.getConnection();
+				boolean valueToSet = (command == OnOffType.ON);
+				switchDevice.setSwitchState(valueToSet, itemName, deviceHost);
+			}
+		} else {
+			logger.debug("Unsupported command type for item " + itemName);
+		}
+	}
 
-    /**
-     * @{inheritDoc
-     */
-    @Override
-    protected void internalReceiveCommand(String itemName, Command command) {
-        logger.debug("internalReceiveCommand() is called!");
-        FritzahaBindingProvider commandProvider = null;
-        FritzahaSwitchedOutlet switchDevice = null;
-        for (FritzahaBindingProvider currentProvider : providers) {
-            if (!currentProvider.getItemNames().contains(itemName)) {
-                continue;
-            }
-            FritzahaDevice device = currentProvider.getDeviceConfig(itemName);
-            if (!(device instanceof FritzahaSwitchedOutlet)) {
-                continue;
-            }
-            switchDevice = (FritzahaSwitchedOutlet) device;
-            commandProvider = currentProvider;
-            break;
-        }
-        if (commandProvider == null || switchDevice == null) {
-            logger.error("No provider found for item " + itemName);
-            return;
-        }
-        if (command instanceof OnOffType) {
-            String deviceHostID = switchDevice.getHost();
-            Host host = hostCache.get(deviceHostID);
-            if (host != null) {
-                FritzahaWebInterface deviceHost = host.getConnection();
-                boolean valueToSet = (command == OnOffType.ON);
-                switchDevice.setSwitchState(valueToSet, itemName, deviceHost);
-            }
-        } else {
-            logger.debug("Unsupported command type for item " + itemName);
-        }
-    }
+	/**
+	 * @{inheritDoc
+	 */
+	@Override
+	protected void internalReceiveUpdate(String itemName, State newState) {
+		// No action required on received updates
+	}
 
-    /**
-     * @{inheritDoc
-     */
-    @Override
-    protected void internalReceiveUpdate(String itemName, State newState) {
-        // No action required on received updates
-    }
+	/**
+	 * @{inheritDoc
+	 */
+	public void updated(Dictionary<String, ?> config) throws ConfigurationException {
+		if (config != null) {
+			// Based on SamsungTv parsing mechanism
+			Enumeration<String> keys = config.keys();
 
-    /**
-     * @{inheritDoc
-     */
-    public void updated(Dictionary<String, ?> config) throws ConfigurationException {
-        if (config != null) {
-            // Based on SamsungTv parsing mechanism
-            Enumeration<String> keys = config.keys();
+			while (keys.hasMoreElements()) {
+				String key = (String) keys.nextElement();
+			
+				// the config-key enumeration contains additional keys that we
+				// don't want to process here ...
+				if ("service.pid".equals(key)) {
+					continue;
+				}
 
-            while (keys.hasMoreElements()) {
-                String key = keys.nextElement();
+				// to override the default refresh interval one has to add a
+				// parameter to openhab.cfg like
+				// <bindingName>:refresh=<intervalInMs>
+				if ("refresh".equals(key)) {
+					refreshInterval = Long.parseLong((String) config.get("refresh"));
+					continue;
+				}
 
-                // the config-key enumeration contains additional keys that we
-                // don't want to process here ...
-                if ("service.pid".equals(key)) {
-                    continue;
-                }
+				Matcher matcher = DEVICES_PATTERN.matcher(key);
 
-                // to override the default refresh interval one has to add a
-                // parameter to openhab.cfg like
-                // <bindingName>:refresh=<intervalInMs>
-                if ("refresh".equals(key)) {
-                    refreshInterval = Long.parseLong((String) config.get("refresh"));
-                    continue;
-                }
+				if (!matcher.matches()) {
+					logger.debug("given config key '" + key
+							+ "' does not follow the expected pattern '<id>.<host|port|protocol|username|password>'");
+					continue;
+				}
 
-                Matcher matcher = DEVICES_PATTERN.matcher(key);
+				matcher.reset();
+				matcher.find();
 
-                if (!matcher.matches()) {
-                    logger.debug("given config key '" + key
-                            + "' does not follow the expected pattern '<id>.<host|port|protocol|username|password>'");
-                    continue;
-                }
+				String hostId = matcher.group(1);
 
-                matcher.reset();
-                matcher.find();
+				Host host = hostCache.get(hostId);
 
-                String hostId = matcher.group(1);
+				if (host == null) {
+					host = new Host(hostId);
+					
+					host.eventPublisher = eventPublisher;
+					hostCache.put(hostId, host);
+					logger.debug("Created new FritzAHA host " + hostId);
+				}
 
-                Host host = hostCache.get(hostId);
+				String configKey = matcher.group(2);
+				String value = (String) config.get(key);
 
-                if (host == null) {
-                    host = new Host(hostId);
+				if ("host".equals(configKey)) {
+					host.host = value;
+				} else if ("port".equals(configKey)) {
+					host.port = Integer.valueOf(value);
+				} else if ("protocol".equals(configKey)) {
+					host.protocol = value;
+				} else if ("username".equals(configKey)) {
+					host.username = value;
+				} else if ("password".equals(configKey)) {
+					host.password = value;
+				} else if ("synctimeout".equals(configKey)) {
+					host.synctimeout = Integer.parseInt((String) value);
+				} else if ("asynctimeout".equals(configKey)) {
+					host.asynctimeout = Integer.parseInt((String) value);
+				} else {
+					throw new ConfigurationException(configKey, "the given configKey '" + configKey + "' is unknown");
+				}
+			}
+			setProperlyConfigured(true);
+			logger.debug("FritzAHA Binding configured");
+		}
+	}
 
-                    host.eventPublisher = eventPublisher;
-                    hostCache.put(hostId, host);
-                    logger.debug("Created new FritzAHA host " + hostId);
-                }
+	/**
+	 * Internal data structure which carries the connection details of one
+	 * device (there could be several)
+	 */
+	static class Host {
 
-                String configKey = matcher.group(2);
-                String value = (String) config.get(key);
+		String host = "fritz.box";
+		int port = -1;
+		String protocol = "http";
+		String username = "";
+		String password = "";
+		int synctimeout = 2000;
+		int asynctimeout = 4000;
 
-                if ("host".equals(configKey)) {
-                    host.host = value;
-                } else if ("port".equals(configKey)) {
-                    host.port = Integer.valueOf(value);
-                } else if ("protocol".equals(configKey)) {
-                    host.protocol = value;
-                } else if ("username".equals(configKey)) {
-                    host.username = value;
-                } else if ("password".equals(configKey)) {
-                    host.password = value;
-                } else if ("synctimeout".equals(configKey)) {
-                    host.synctimeout = Integer.parseInt(value);
-                } else if ("asynctimeout".equals(configKey)) {
-                    host.asynctimeout = Integer.parseInt(value);
-                } else {
-                    throw new ConfigurationException(configKey, "the given configKey '" + configKey + "' is unknown");
-                }
-            }
-            setProperlyConfigured(true);
-            logger.debug("FritzAHA Binding configured");
-        }
-    }
+		FritzahaWebInterface connection;
+		String hostId;
 
-    /**
-     * Internal data structure which carries the connection details of one
-     * device (there could be several)
-     */
-    static class Host {
+		EventPublisher eventPublisher;
 
-        String host = "fritz.box";
-        int port = -1;
-        String protocol = "http";
-        String username = "";
-        String password = "";
-        int synctimeout = 2000;
-        int asynctimeout = 4000;
+		public Host(String hostId) {
+			this.hostId = hostId;
+		}
 
-        FritzahaWebInterface connection;
-        String hostId;
+		@Override
+		public String toString() {
+			return "Host [id=" + hostId + ", host=" + host + ", port=" + port + ", username=" + username + "]";
+		}
 
-        EventPublisher eventPublisher;
+		/**
+		 * Creates connection if necessary, uses previously created connection
+		 * if not.
+		 * 
+		 * @return Connection
+		 */
+		FritzahaWebInterface getConnection() {
+			if (connection == null) {
+				logger.debug("New connection to " + host + " with timeouts ("+synctimeout+"|"+asynctimeout+").");
+				connection = new FritzahaWebInterface(host, port, protocol, username, password, synctimeout, asynctimeout);
+				connection.setEventPublisher(eventPublisher);
+			}
+			return connection;
+		}
 
-        public Host(String hostId) {
-            this.hostId = hostId;
-        }
-
-        @Override
-        public String toString() {
-            return "Host [id=" + hostId + ", host=" + host + ", port=" + port + ", username=" + username + "]";
-        }
-
-        /**
-         * Creates connection if necessary, uses previously created connection
-         * if not.
-         * 
-         * @return Connection
-         */
-        FritzahaWebInterface getConnection() {
-            if (connection == null) {
-                logger.debug(
-                        "New connection to " + host + " with timeouts (" + synctimeout + "|" + asynctimeout + ").");
-                connection = new FritzahaWebInterface(host, port, protocol, username, password, synctimeout,
-                        asynctimeout);
-                connection.setEventPublisher(eventPublisher);
-            }
-            return connection;
-        }
-
-    }
+	}
 
 }

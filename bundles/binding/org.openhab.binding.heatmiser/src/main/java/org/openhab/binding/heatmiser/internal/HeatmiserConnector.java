@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2016, openHAB.org and others.
+ * Copyright (c) 2010-2015, openHAB.org and others.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -9,8 +9,8 @@
 package org.openhab.binding.heatmiser.internal;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InterruptedIOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.net.UnknownHostException;
@@ -27,225 +27,224 @@ import org.slf4j.LoggerFactory;
  * Heatmiser network communications connector.
  * Maintains the IP connection and reconnects on error.
  * If responses stop, the connection is reconnected.
- *
+ * 
  * @author Chris Jackson
  * @since 1.4.0
  */
 public class HeatmiserConnector {
 
-    private static final Logger logger = LoggerFactory.getLogger(HeatmiserConnector.class);
+	private static final Logger logger = LoggerFactory
+			.getLogger(HeatmiserConnector.class);
 
-    private static List<HeatmiserEventListener> _listeners = new ArrayList<HeatmiserEventListener>();
+	private static List<HeatmiserEventListener> _listeners = new ArrayList<HeatmiserEventListener>();
 
-    private String ipAddress;
-    private int ipPort;
+	private String ipAddress;
+	private int ipPort;
+	
+	private Socket socket = null;
+	private InputStream in = null;
+	private OutputStream out = null;
 
-    private Socket socket = null;
-    private InputStream in = null;
-    private OutputStream out = null;
+	Thread inputThread = null;
+	
+	// The connectionStateCount is used to keep track of errors. It counts up by 1 for each message sent
+	// and down by 2 for each message received. Thus if it ever gets "too high" then <50% of messages
+	// are receiving a response.
+	int connectionStateCount = 0;
 
-    Thread inputThread = null;
+	public enum States {
+		SEARCHING,
+		LENGTH1,
+		LENGTH2,
+		RECEIVING
+	}
+	
+	public HeatmiserConnector() {
+	}
 
-    // The connectionStateCount is used to keep track of errors. It counts up by 1 for each message sent
-    // and down by 2 for each message received. Thus if it ever gets "too high" then <50% of messages
-    // are receiving a response.
-    int connectionStateCount = 0;
+	public void connect(String address, int port) throws IOException {
+		ipAddress = new String(address);
+		ipPort = port;
+		
+		doConnect();
+	}
 
-    public enum States {
-        SEARCHING,
-        LENGTH1,
-        LENGTH2,
-        RECEIVING
-    }
+	private void doConnect() throws IOException {
+		try {
+			socket = new Socket(ipAddress, ipPort);
+			in = socket.getInputStream();
+			out = socket.getOutputStream();
+		} catch (UnknownHostException e) {
+			logger.error("Can't find host: {}:{}.", ipAddress, ipPort);
+		} catch (IOException e) {
+			logger.error("Couldn't get I/O for the connection to: {}:{}.", ipAddress, ipPort);
+			return;
+		}
 
-    public HeatmiserConnector() {
-    }
+		inputThread = new InputReader(in);
+		inputThread.start();
+		
+		connectionStateCount = 0;
+	}
 
-    public void connect(String address, int port) throws IOException {
-        ipAddress = new String(address);
-        ipPort = port;
+	public void disconnect() {
+		if(socket == null)
+			return;
 
-        doConnect();
-    }
+		logger.debug("Interrupt connection");
+		inputThread.interrupt();
 
-    private void doConnect() throws IOException {
-        try {
-            socket = new Socket(ipAddress, ipPort);
-            in = socket.getInputStream();
-            out = socket.getOutputStream();
-        } catch (UnknownHostException e) {
-            logger.error("Can't find host: {}:{}.", ipAddress, ipPort);
-        } catch (IOException e) {
-            logger.error("Couldn't get I/O for the connection to: {}:{}.", ipAddress, ipPort);
-            return;
-        }
+		logger.debug("Close connection");
+		try {
+			out.close();
+		} catch (IOException e) {
+			logger.error("Error closing Heatmiser connection: ", e.getMessage());
+		}
 
-        inputThread = new InputReader(in);
-        inputThread.start();
+		socket = null;
+		in = null;
+		out = null;
+		inputThread = null;
+		
+		logger.debug("Ready");
+	}
 
-        connectionStateCount = 0;
-    }
+	/**
+	 * Sends a message
+	 * @param data data to send
+	 */
+	public void sendMessage(byte[] data)  {
+		if(socket == null) {
+			logger.debug("Heatmiser disconnected: Performing reconnect");
+			try {
+				doConnect();
+			} catch (IOException e) {
+				logger.error("Error reconnecting Heatmiser");
+			}
+		}
 
-    public void disconnect() {
-        if (socket == null) {
-            return;
-        }
+		if(socket == null)
+			return;
 
-        logger.debug("Interrupt connection");
-        inputThread.interrupt();
+		// Increment the state counter by 1
+		connectionStateCount++;
+		
+		try {
+			out.write(data);
+			out.flush();
+		} catch (IOException e) {
+			logger.error("HEATMISER: Error sending message "+e.getMessage());
+			disconnect();
+		}
+	}
 
-        logger.debug("Close connection");
-        try {
-            out.close();
-        } catch (IOException e) {
-            logger.error("Error closing Heatmiser connection: ", e.getMessage());
-        }
+	public synchronized void addEventListener(HeatmiserEventListener listener) {
+		_listeners.add(listener);
+	}
 
-        socket = null;
-        in = null;
-        out = null;
-        inputThread = null;
+	public synchronized void removeEventListener(HeatmiserEventListener listener) {
+		_listeners.remove(listener);
+	}
 
-        logger.debug("Ready");
-    }
+	/**
+	 * Data receive thread
+	 */
+	public class InputReader extends Thread {
+		InputStream in;
 
-    /**
-     * Sends a message
-     * 
-     * @param data data to send
-     */
-    public void sendMessage(byte[] data) {
-        if (socket == null) {
-            logger.debug("Heatmiser disconnected: Performing reconnect");
-            try {
-                doConnect();
-            } catch (IOException e) {
-                logger.error("Error reconnecting Heatmiser");
-            }
-        }
+		public InputReader(InputStream in) {
+			this.in = in;
+		}
 
-        if (socket == null) {
-            return;
-        }
+		public void interrupt() {
+			super.interrupt();
+			try {
+				in.close();
+			} catch (IOException e) {
+				logger.error("Error reading Heatmiser connection: ", e.getMessage());
+			} // quietly close
+		}
 
-        // Increment the state counter by 1
-        connectionStateCount++;
+		public void run() {
+			final int dataBufferMaxLen = 256;
 
-        try {
-            out.write(data);
-            out.flush();
-        } catch (IOException e) {
-            logger.error("HEATMISER: Error sending message " + e.getMessage());
-            disconnect();
-        }
-    }
+			byte[] dataBuffer = new byte[dataBufferMaxLen];
 
-    public synchronized void addEventListener(HeatmiserEventListener listener) {
-        _listeners.add(listener);
-    }
+			int msgLen = 0;
+			int index = 0;
+			States state = States.SEARCHING;
 
-    public synchronized void removeEventListener(HeatmiserEventListener listener) {
-        _listeners.remove(listener);
-    }
+			try {
+				byte[] tmpData = new byte[150];
+				int len = -1;
 
-    /**
-     * Data receive thread
-     */
-    public class InputReader extends Thread {
-        InputStream in;
+				while ((len = in.read(tmpData)) > 0) {
+					for (int i = 0; i < len; i++) {
 
-        public InputReader(InputStream in) {
-            this.in = in;
-        }
+						if (index >= dataBufferMaxLen) {
+							// too many bytes received, try to find new start
+							state = States.SEARCHING;
+						}
 
-        @Override
-        public void interrupt() {
-            super.interrupt();
-            try {
-                in.close();
-            } catch (IOException e) {
-                logger.error("Error reading Heatmiser connection: ", e.getMessage());
-            } // quietly close
-        }
+						if (state == States.SEARCHING && (int)(tmpData[i] & 0xff) == 0x81) {
+							state = States.LENGTH1;
+							index = 0;
+							dataBuffer[index++] = tmpData[i];
+						}
+						else if (state == States.LENGTH1) {
+							state = States.LENGTH2;
+							msgLen = tmpData[i];
+							dataBuffer[index++] = tmpData[i];
+						} else if (state == States.LENGTH2) {
+							state = States.RECEIVING;
+							msgLen += tmpData[i] * 256;
+							dataBuffer[index++] = tmpData[i];
+						}
+						else if (state == States.RECEIVING) {
+							dataBuffer[index++] = tmpData[i];
+							if (index == msgLen) {
+								// whole message received, send an event
+								byte[] msg = new byte[msgLen];
 
-        @Override
-        public void run() {
-            final int dataBufferMaxLen = 256;
+								for (int j = 0; j < msgLen; j++)
+									msg[j] = dataBuffer[j];
 
-            byte[] dataBuffer = new byte[dataBufferMaxLen];
+								HeatmiserResponseEvent event = new HeatmiserResponseEvent(this);
 
-            int msgLen = 0;
-            int index = 0;
-            States state = States.SEARCHING;
+								// Decrement the state counter by 2
+								if(connectionStateCount <= 2)
+									connectionStateCount = 0;
+								else
+									connectionStateCount-=2;
 
-            try {
-                byte[] tmpData = new byte[150];
-                int len = -1;
+								try {
+									Iterator<HeatmiserEventListener> iterator = _listeners
+											.iterator();
 
-                while ((len = in.read(tmpData)) > 0) {
-                    for (int i = 0; i < len; i++) {
+									while (iterator.hasNext()) {
+										((HeatmiserEventListener) iterator
+												.next()).packetReceived(event,
+												msg);
+									}
 
-                        if (index >= dataBufferMaxLen) {
-                            // too many bytes received, try to find new start
-                            state = States.SEARCHING;
-                        }
+								} catch (Exception e) {
+									logger.error("Event listener error", e);
+								}
 
-                        if (state == States.SEARCHING && (tmpData[i] & 0xff) == 0x81) {
-                            state = States.LENGTH1;
-                            index = 0;
-                            dataBuffer[index++] = tmpData[i];
-                        } else if (state == States.LENGTH1) {
-                            state = States.LENGTH2;
-                            msgLen = tmpData[i];
-                            dataBuffer[index++] = tmpData[i];
-                        } else if (state == States.LENGTH2) {
-                            state = States.RECEIVING;
-                            msgLen += tmpData[i] * 256;
-                            dataBuffer[index++] = tmpData[i];
-                        } else if (state == States.RECEIVING) {
-                            dataBuffer[index++] = tmpData[i];
-                            if (index == msgLen) {
-                                // whole message received, send an event
-                                byte[] msg = new byte[msgLen];
+								// find new start
+								state = States.SEARCHING;
+							}
+						}
+					}
+				}
+			} catch (InterruptedIOException e) {
+				Thread.currentThread().interrupt();
+				logger.error("Interrupted via InterruptedIOException");
+			} catch (IOException e) {
+				logger.error("Reading from network failed", e);
+			}
 
-                                for (int j = 0; j < msgLen; j++) {
-                                    msg[j] = dataBuffer[j];
-                                }
-
-                                HeatmiserResponseEvent event = new HeatmiserResponseEvent(this);
-
-                                // Decrement the state counter by 2
-                                if (connectionStateCount <= 2) {
-                                    connectionStateCount = 0;
-                                } else {
-                                    connectionStateCount -= 2;
-                                }
-
-                                try {
-                                    Iterator<HeatmiserEventListener> iterator = _listeners.iterator();
-
-                                    while (iterator.hasNext()) {
-                                        iterator.next().packetReceived(event, msg);
-                                    }
-
-                                } catch (Exception e) {
-                                    logger.error("Event listener error", e);
-                                }
-
-                                // find new start
-                                state = States.SEARCHING;
-                            }
-                        }
-                    }
-                }
-            } catch (InterruptedIOException e) {
-                Thread.currentThread().interrupt();
-                logger.error("Interrupted via InterruptedIOException");
-            } catch (IOException e) {
-                logger.error("Reading from network failed", e);
-            }
-
-            logger.debug("Ready reading from network");
-        }
-    }
+			logger.debug("Ready reading from network");
+		}
+	}
 }

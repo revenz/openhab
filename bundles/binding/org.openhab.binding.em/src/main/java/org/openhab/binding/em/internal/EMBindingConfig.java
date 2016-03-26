@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2016, openHAB.org and others.
+ * Copyright (c) 2010-2015, openHAB.org and others.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -16,106 +16,101 @@ import org.openhab.core.items.Item;
 
 /**
  * This class represents item configurations for the em binding.
- *
+ * 
  * @author Till Klocke
  * @since 1.4.0
- *
+ * 
  */
 public class EMBindingConfig implements BindingConfig {
 
-    /**
-     * Enum representing the available device types
-     * 
-     * @author Till Klocke
-     * @since 1.4.0
-     * 
-     */
-    public static enum EMType {
+	/**
+	 * Enum representing the available device types
+	 * 
+	 * @author Till Klocke
+	 * @since 1.4.0
+	 * 
+	 */
+	public static enum EMType {
 
-        EM1000S("01"),
-        EM100EM("02"),
-        EM1000GZ("03");
+		EM1000S("01"), EM100EM("02"), EM1000GZ("03");
 
-        private static Map<String, EMType> typeMap = new HashMap<String, EMBindingConfig.EMType>();
+		private static Map<String, EMType> typeMap = new HashMap<String, EMBindingConfig.EMType>();
+		static {
+			for (EMType type : EMType.values()) {
+				typeMap.put(type.getTypeValue(), type);
+			}
+		}
 
-        static {
-            for (EMType type : EMType.values()) {
-                typeMap.put(type.getTypeValue(), type);
-            }
-        }
+		private String value;
 
-        private String value;
+		private EMType(String value) {
+			this.value = value;
+		}
 
-        private EMType(String value) {
-            this.value = value;
-        }
+		public String getTypeValue() {
+			return value;
+		}
 
-        public String getTypeValue() {
-            return value;
-        }
+		public static EMType getFromTypeValue(String typeValue) {
+			return typeMap.get(typeValue);
+		}
+	}
 
-        public static EMType getFromTypeValue(String typeValue) {
-            return typeMap.get(typeValue);
-        }
-    }
+	public static enum Datapoint {
+		CUMULATED_VALUE, TOP_VALUE, LAST_VALUE;
+	}
 
-    public static enum Datapoint {
-        CUMULATED_VALUE,
-        TOP_VALUE,
-        LAST_VALUE;
-    }
+	private EMType type;
+	private String address;
+	private Datapoint datapoint;
+	double correctionFactor;
+	private Item item;
 
-    private EMType type;
-    private String address;
-    private Datapoint datapoint;
-    double correctionFactor;
-    private Item item;
+	public EMBindingConfig(EMType type, String address, Datapoint datapoint, Item item, double correctionFactor) {
+		this.type = type;
+		this.address = address;
+		this.datapoint = datapoint;
+		this.item = item;
+		this.correctionFactor = correctionFactor;
+	}
 
-    public EMBindingConfig(EMType type, String address, Datapoint datapoint, Item item, double correctionFactor) {
-        this.type = type;
-        this.address = address;
-        this.datapoint = datapoint;
-        this.item = item;
-        this.correctionFactor = correctionFactor;
-    }
+	public EMType getType() {
+		return type;
+	}
 
-    public EMType getType() {
-        return type;
-    }
+	public void setType(EMType type) {
+		this.type = type;
+	}
 
-    public void setType(EMType type) {
-        this.type = type;
-    }
+	public String getAddress() {
+		return address;
+	}
 
-    public String getAddress() {
-        return address;
-    }
+	public void setAddress(String address) {
+		this.address = address;
+	}
 
-    public void setAddress(String address) {
-        this.address = address;
-    }
+	public Datapoint getDatapoint() {
+		return datapoint;
+	}
 
-    public Datapoint getDatapoint() {
-        return datapoint;
-    }
+	public void setDatapoint(Datapoint datapoint) {
+		this.datapoint = datapoint;
+	}
 
-    public void setDatapoint(Datapoint datapoint) {
-        this.datapoint = datapoint;
-    }
+	public Item getItem() {
+		return item;
+	}
 
-    public Item getItem() {
-        return item;
-    }
+	public void setItem(Item item) {
+		this.item = item;
+	}
 
-    public void setItem(Item item) {
-        this.item = item;
-    }
+	public double getCorrectionFactor() {
+		return correctionFactor;
+	}
 
-    public double getCorrectionFactor() {
-        return correctionFactor;
-    }
-
-    public void setCorrectionFactor(double correctionFactor) {
-        this.correctionFactor = correctionFactor;
-    }
+	public void setCorrectionFactor(double correctionFactor) {
+		this.correctionFactor = correctionFactor;
+	}
 }

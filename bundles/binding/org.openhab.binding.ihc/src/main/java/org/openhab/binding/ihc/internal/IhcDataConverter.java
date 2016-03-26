@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2016, openHAB.org and others.
+ * Copyright (c) 2010-2015, openHAB.org and others.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -45,354 +45,380 @@ import org.openhab.core.types.UnDefType;
 
 public class IhcDataConverter {
 
-    /**
-     * Convert IHC data type to openHAB data type.
-     * 
-     * @param itemType
-     *            OpenHAB data type class
-     * @param value
-     *            IHC data value
-     * 
-     * @return openHAB {@link State}
-     */
-    public static State convertResourceValueToState(Class<? extends Item> itemType, WSResourceValue value)
-            throws NumberFormatException {
+	/**
+	 * Convert IHC data type to openHAB data type.
+	 * 
+	 * @param itemType
+	 *            OpenHAB data type class
+	 * @param value
+	 *            IHC data value
+	 * 
+	 * @return openHAB {@link State}
+	 */
+	public static State convertResourceValueToState(
+			Class<? extends Item> itemType, WSResourceValue value)
+			throws NumberFormatException {
+
+		org.openhab.core.types.State state = UnDefType.UNDEF;
+
+		if (itemType == NumberItem.class) {
+
+			if (value.getClass() == WSFloatingPointValue.class) {
+				// state = new
+				// DecimalType(((WSFloatingPointValue)value).getFloatingPointValue());
+
+				// Controller might send floating point value with >10 decimals
+				// (22.299999237060546875), so round value to have max 2
+				// decimals
+				double d = ((WSFloatingPointValue) value)
+						.getFloatingPointValue();
+				BigDecimal bd = new BigDecimal(d).setScale(2,
+						RoundingMode.HALF_EVEN);
+				state = new DecimalType(bd);
+			}
+
+			else if (value.getClass() == WSBooleanValue.class) {
+				state = new DecimalType(((WSBooleanValue) value).isValue() ? 1 : 0);
+			}
+			
+			else if (value.getClass() == WSIntegerValue.class) {
+				state = new DecimalType(((WSIntegerValue) value).getInteger());
+			}
+			
+			else if (value.getClass() == WSTimerValue.class) {
+				state = new DecimalType(((WSTimerValue) value).getMilliseconds());
+			}
+			
+			else if (value.getClass() == WSEnumValue.class) {
+				state = new DecimalType(((WSEnumValue) value).getEnumValueID());
+			}
+			
+			else if (value.getClass() == WSWeekdayValue.class) {
+				state = new DecimalType(((WSWeekdayValue) value).getWeekdayNumber());
+			}
+			
+			else {
+				throw new NumberFormatException("Can't convert "
+						+ value.getClass().toString() + " to NumberItem");
+			}
+
+		} else if (itemType == DimmerItem.class) {
+
+			// Dimmer item extends SwitchItem, so it need to be handled before
+			// SwitchItem
+
+			if (value.getClass() == WSIntegerValue.class) {
+				state = new PercentType(((WSIntegerValue) value).getInteger());
+
+			} else {
+				throw new NumberFormatException("Can't convert "
+						+ value.getClass().toString() + " to NumberItem");
+			}
+
+		} else if (itemType == SwitchItem.class) {
+
+			if (value.getClass() == WSBooleanValue.class) {
+				if (((WSBooleanValue) value).isValue()) {
+					state = OnOffType.ON;
+				} else {
+					state = OnOffType.OFF;
+				}
+			} else {
+				throw new NumberFormatException("Can't convert "
+						+ value.getClass().toString() + " to SwitchItem");
+			}
+
+		} else if (itemType == ContactItem.class) {
+
+			if (value.getClass() == WSBooleanValue.class) {
+				if (((WSBooleanValue) value).isValue()) {
+					state = OpenClosedType.OPEN;
+				} else {
+					state = OpenClosedType.CLOSED;
+				}
+			} else {
+				throw new NumberFormatException("Can't convert "
+						+ value.getClass().toString() + " to ContactItem");
+			}
+
+		} else if (itemType == DateTimeItem.class) {
+
+			if (value.getClass() == WSDateValue.class) {
+
+				Calendar cal = WSDateTimeToCalendar((WSDateValue) value, null);
+				state = new DateTimeType(cal);
 
-        org.openhab.core.types.State state = UnDefType.UNDEF;
+			} else if (value.getClass() == WSTimeValue.class) {
 
-        if (itemType == NumberItem.class) {
+				Calendar cal = WSDateTimeToCalendar(null, (WSTimeValue) value);
+				state = new DateTimeType(cal);
 
-            if (value.getClass() == WSFloatingPointValue.class) {
-                // state = new
-                // DecimalType(((WSFloatingPointValue)value).getFloatingPointValue());
+			} else {
 
-                // Controller might send floating point value with >10 decimals
-                // (22.299999237060546875), so round value to have max 2
-                // decimals
-                double d = ((WSFloatingPointValue) value).getFloatingPointValue();
-                BigDecimal bd = new BigDecimal(d).setScale(2, RoundingMode.HALF_EVEN);
-                state = new DecimalType(bd);
-            }
+				throw new NumberFormatException("Can't convert "
+						+ value.getClass().toString() + " to DateTimeItem");
+			}
 
-            else if (value.getClass() == WSBooleanValue.class) {
-                state = new DecimalType(((WSBooleanValue) value).isValue() ? 1 : 0);
-            }
+		} else if (itemType == StringItem.class) {
 
-            else if (value.getClass() == WSIntegerValue.class) {
-                state = new DecimalType(((WSIntegerValue) value).getInteger());
-            }
+			if (value.getClass() == WSEnumValue.class) {
 
-            else if (value.getClass() == WSTimerValue.class) {
-                state = new DecimalType(((WSTimerValue) value).getMilliseconds());
-            }
+				state = new StringType(((WSEnumValue) value).getEnumName());
 
-            else if (value.getClass() == WSEnumValue.class) {
-                state = new DecimalType(((WSEnumValue) value).getEnumValueID());
-            }
+			} else {
 
-            else if (value.getClass() == WSWeekdayValue.class) {
-                state = new DecimalType(((WSWeekdayValue) value).getWeekdayNumber());
-            }
+				throw new NumberFormatException("Can't convert "
+						+ value.getClass().toString() + " to StringItem");
+			}
 
-            else {
-                throw new NumberFormatException("Can't convert " + value.getClass().toString() + " to NumberItem");
-            }
+		} else if (itemType == RollershutterItem.class) {
 
-        } else if (itemType == DimmerItem.class) {
+			if (value.getClass() == WSIntegerValue.class)
+				state = new PercentType(((WSIntegerValue) value).getInteger());
 
-            // Dimmer item extends SwitchItem, so it need to be handled before
-            // SwitchItem
+			else
+				throw new NumberFormatException("Can't convert "
+						+ value.getClass().toString() + " to NumberItem");
 
-            if (value.getClass() == WSIntegerValue.class) {
-                state = new PercentType(((WSIntegerValue) value).getInteger());
+		}
 
-            } else {
-                throw new NumberFormatException("Can't convert " + value.getClass().toString() + " to NumberItem");
-            }
+		return state;
+	}
 
-        } else if (itemType == SwitchItem.class) {
+	private static Calendar WSDateTimeToCalendar(WSDateValue date,
+			WSTimeValue time) {
 
-            if (value.getClass() == WSBooleanValue.class) {
-                if (((WSBooleanValue) value).isValue()) {
-                    state = OnOffType.ON;
-                } else {
-                    state = OnOffType.OFF;
-                }
-            } else {
-                throw new NumberFormatException("Can't convert " + value.getClass().toString() + " to SwitchItem");
-            }
+		Calendar cal = new GregorianCalendar(1900, 01, 01);
 
-        } else if (itemType == ContactItem.class) {
+		if (date != null) {
+			short year = date.getYear();
+			short month = date.getMonth();
+			short day = date.getDay();
 
-            if (value.getClass() == WSBooleanValue.class) {
-                if (((WSBooleanValue) value).isValue()) {
-                    state = OpenClosedType.OPEN;
-                } else {
-                    state = OpenClosedType.CLOSED;
-                }
-            } else {
-                throw new NumberFormatException("Can't convert " + value.getClass().toString() + " to ContactItem");
-            }
+			cal.set(year, month, day, 0, 0, 0);
+		}
 
-        } else if (itemType == DateTimeItem.class) {
+		if (time != null) {
+			int hour = time.getHours();
+			int minute = time.getMinutes();
+			int second = time.getSeconds();
 
-            if (value.getClass() == WSDateValue.class) {
+			cal.set(1900, 1, 1, hour, minute, second);
+		}
 
-                Calendar cal = WSDateTimeToCalendar((WSDateValue) value, null);
-                state = new DateTimeType(cal);
+		return cal;
+	}
 
-            } else if (value.getClass() == WSTimeValue.class) {
+	/**
+	 * Convert openHAB data type to IHC data type.
+	 * 
+	 * @param type
+	 *            openHAB data type
+	 * @param value
+	 * 
+	 * @param enumValues
+	 * 
+	 * @return IHC data type
+	 */
+	public static WSResourceValue convertCommandToResourceValue(Type type,
+			WSResourceValue value, ArrayList<IhcEnumValue> enumValues) {
 
-                Calendar cal = WSDateTimeToCalendar(null, (WSTimeValue) value);
-                state = new DateTimeType(cal);
+		if (type instanceof DecimalType) {
 
-            } else {
+			if (value instanceof WSFloatingPointValue) {
 
-                throw new NumberFormatException("Can't convert " + value.getClass().toString() + " to DateTimeItem");
-            }
+				double newVal = ((DecimalType) type).doubleValue();
+				double max = ((WSFloatingPointValue) value).getMaximumValue();
+				double min = ((WSFloatingPointValue) value).getMinimumValue();
 
-        } else if (itemType == StringItem.class) {
+				if (newVal >= min && newVal <= max) {
+					((WSFloatingPointValue) value).setFloatingPointValue(newVal);
+				} else {
+					throw new NumberFormatException(
+							"Value is not between accetable limits (min=" + min
+									+ ", max=" + max + ")");
+				}
 
-            if (value.getClass() == WSEnumValue.class) {
+			} else if (value instanceof WSBooleanValue) {
 
-                state = new StringType(((WSEnumValue) value).getEnumName());
+				((WSBooleanValue) value).setValue(((DecimalType) type)
+						.intValue() > 0 ? true : false);
 
-            } else {
+			} else if (value instanceof WSIntegerValue) {
 
-                throw new NumberFormatException("Can't convert " + value.getClass().toString() + " to StringItem");
-            }
+				int newVal = ((DecimalType) type).intValue();
+				int max = ((WSIntegerValue) value).getMaximumValue();
+				int min = ((WSIntegerValue) value).getMinimumValue();
 
-        } else if (itemType == RollershutterItem.class) {
+				if (newVal >= min && newVal <= max) {
+					((WSIntegerValue) value).setInteger(newVal);
+				} else {
+					throw new NumberFormatException(
+							"Value is not between accetable limits (min=" + min
+									+ ", max=" + max + ")");
+				}
 
-            if (value.getClass() == WSIntegerValue.class) {
-                state = new PercentType(((WSIntegerValue) value).getInteger());
-            } else {
-                throw new NumberFormatException("Can't convert " + value.getClass().toString() + " to NumberItem");
-            }
+			} else if (value instanceof WSTimerValue) {
 
-        }
+				((WSTimerValue) value).setMilliseconds(((DecimalType) type).longValue());
 
-        return state;
-    }
+			} else if (value instanceof WSWeekdayValue) {
 
-    private static Calendar WSDateTimeToCalendar(WSDateValue date, WSTimeValue time) {
+				((WSWeekdayValue) value).setWeekdayNumber(((DecimalType) type).intValue());
 
-        Calendar cal = new GregorianCalendar(1900, 01, 01);
+			} else {
 
-        if (date != null) {
-            short year = date.getYear();
-            short month = date.getMonth();
-            short day = date.getDay();
+				throw new NumberFormatException("Can't convert DecimalType to "
+						+ value.getClass());
 
-            cal.set(year, month, day, 0, 0, 0);
-        }
+			}
 
-        if (time != null) {
-            int hour = time.getHours();
-            int minute = time.getMinutes();
-            int second = time.getSeconds();
+		} else if (type instanceof OnOffType) {
 
-            cal.set(1900, 1, 1, hour, minute, second);
-        }
+			if (value instanceof WSBooleanValue) {
 
-        return cal;
-    }
+				((WSBooleanValue) value).setValue(type == OnOffType.ON ? true : false);
 
-    /**
-     * Convert openHAB data type to IHC data type.
-     * 
-     * @param type
-     *            openHAB data type
-     * @param value
-     * 
-     * @param enumValues
-     * 
-     * @return IHC data type
-     */
-    public static WSResourceValue convertCommandToResourceValue(Type type, WSResourceValue value,
-            ArrayList<IhcEnumValue> enumValues) {
+			} else if (value instanceof WSIntegerValue) {
 
-        if (type instanceof DecimalType) {
+				int newVal = type == OnOffType.ON ? 100 : 0;
+				int max = ((WSIntegerValue) value).getMaximumValue();
+				int min = ((WSIntegerValue) value).getMinimumValue();
 
-            if (value instanceof WSFloatingPointValue) {
+				if (newVal >= min && newVal <= max) {
+					((WSIntegerValue) value).setInteger(newVal);
+				} else {
+					throw new NumberFormatException(
+							"Value is not between accetable limits (min=" + min
+									+ ", max=" + max + ")");
+				}
 
-                double newVal = ((DecimalType) type).doubleValue();
-                double max = ((WSFloatingPointValue) value).getMaximumValue();
-                double min = ((WSFloatingPointValue) value).getMinimumValue();
+			} else {
 
-                if (newVal >= min && newVal <= max) {
-                    ((WSFloatingPointValue) value).setFloatingPointValue(newVal);
-                } else {
-                    throw new NumberFormatException(
-                            "Value is not between accetable limits (min=" + min + ", max=" + max + ")");
-                }
+				throw new NumberFormatException("Can't convert OnOffType to "
+						+ value.getClass());
 
-            } else if (value instanceof WSBooleanValue) {
+			}
+		} else if (type instanceof OpenClosedType) {
 
-                ((WSBooleanValue) value).setValue(((DecimalType) type).intValue() > 0 ? true : false);
+			((WSBooleanValue) value).setValue(type == OpenClosedType.OPEN ? true : false);
 
-            } else if (value instanceof WSIntegerValue) {
+		} else if (type instanceof DateTimeType) {
 
-                int newVal = ((DecimalType) type).intValue();
-                int max = ((WSIntegerValue) value).getMaximumValue();
-                int min = ((WSIntegerValue) value).getMinimumValue();
+			if (value instanceof WSDateValue) {
+				Calendar c = ((DateTimeType) type).getCalendar(); 
+				
+				short year = (short) c.get(Calendar.YEAR);
+				byte month = (byte) c.get(Calendar.MONTH);
+				byte day = (byte) c.get(Calendar.DAY_OF_MONTH);
 
-                if (newVal >= min && newVal <= max) {
-                    ((WSIntegerValue) value).setInteger(newVal);
-                } else {
-                    throw new NumberFormatException(
-                            "Value is not between accetable limits (min=" + min + ", max=" + max + ")");
-                }
+				((WSDateValue) value).setYear(year);
+				((WSDateValue) value).setMonth(month);
+				((WSDateValue) value).setDay(day);
 
-            } else if (value instanceof WSTimerValue) {
+			} else if (value instanceof WSTimeValue) {
+				Calendar c = ((DateTimeType) type).getCalendar();
+				
+				int hours = c.get(Calendar.HOUR_OF_DAY);
+				int minutes = c.get(Calendar.MINUTE);
+				int seconds = c.get(Calendar.SECOND);
 
-                ((WSTimerValue) value).setMilliseconds(((DecimalType) type).longValue());
+				((WSTimeValue) value).setHours(hours);
+				((WSTimeValue) value).setMinutes(minutes);
+				((WSTimeValue) value).setSeconds(seconds);
 
-            } else if (value instanceof WSWeekdayValue) {
+			} else {
 
-                ((WSWeekdayValue) value).setWeekdayNumber(((DecimalType) type).intValue());
+				throw new NumberFormatException(
+						"Can't convert DateTimeItem to " + value.getClass());
 
-            } else {
+			}
 
-                throw new NumberFormatException("Can't convert DecimalType to " + value.getClass());
+		} else if (type instanceof StringType) {
 
-            }
+			if (value instanceof WSEnumValue) {
 
-        } else if (type instanceof OnOffType) {
+				boolean found = false;
 
-            if (value instanceof WSBooleanValue) {
+				for (IhcEnumValue item : enumValues) {
 
-                ((WSBooleanValue) value).setValue(type == OnOffType.ON ? true : false);
+					if (item.name.equals(type.toString())) {
 
-            } else if (value instanceof WSIntegerValue) {
+						((WSEnumValue) value).setEnumValueID(item.id);
+						((WSEnumValue) value).setEnumName(type.toString());
+						found = true;
+						break;
+					}
+				}
 
-                int newVal = type == OnOffType.ON ? 100 : 0;
-                int max = ((WSIntegerValue) value).getMaximumValue();
-                int min = ((WSIntegerValue) value).getMinimumValue();
+				if (found == false) {
+					throw new NumberFormatException(
+							"Can't find enum value for string "
+									+ type.toString());
+				}
 
-                if (newVal >= min && newVal <= max) {
-                    ((WSIntegerValue) value).setInteger(newVal);
-                } else {
-                    throw new NumberFormatException(
-                            "Value is not between accetable limits (min=" + min + ", max=" + max + ")");
-                }
+			} else {
 
-            } else {
+				throw new NumberFormatException("Can't convert StringType to "
+						+ value.getClass());
 
-                throw new NumberFormatException("Can't convert OnOffType to " + value.getClass());
+			}
 
-            }
-        } else if (type instanceof OpenClosedType) {
+		} else if (type instanceof PercentType) {
 
-            ((WSBooleanValue) value).setValue(type == OpenClosedType.OPEN ? true : false);
+			if (value instanceof WSIntegerValue) {
 
-        } else if (type instanceof DateTimeType) {
+				int newVal = ((DecimalType) type).intValue();
+				int max = ((WSIntegerValue) value).getMaximumValue();
+				int min = ((WSIntegerValue) value).getMinimumValue();
 
-            if (value instanceof WSDateValue) {
-                Calendar c = ((DateTimeType) type).getCalendar();
+				if (newVal >= min && newVal <= max) {
+					((WSIntegerValue) value).setInteger(newVal);
+				} else {
+					throw new NumberFormatException(
+							"Value is not between accetable limits (min=" + min
+									+ ", max=" + max + ")");
+				}
 
-                short year = (short) c.get(Calendar.YEAR);
-                byte month = (byte) c.get(Calendar.MONTH);
-                byte day = (byte) c.get(Calendar.DAY_OF_MONTH);
+			} else {
 
-                ((WSDateValue) value).setYear(year);
-                ((WSDateValue) value).setMonth(month);
-                ((WSDateValue) value).setDay(day);
+				throw new NumberFormatException("Can't convert PercentType to "
+						+ value.getClass());
 
-            } else if (value instanceof WSTimeValue) {
-                Calendar c = ((DateTimeType) type).getCalendar();
+			}
 
-                int hours = c.get(Calendar.HOUR_OF_DAY);
-                int minutes = c.get(Calendar.MINUTE);
-                int seconds = c.get(Calendar.SECOND);
+		} else if (type instanceof UpDownType) {
 
-                ((WSTimeValue) value).setHours(hours);
-                ((WSTimeValue) value).setMinutes(minutes);
-                ((WSTimeValue) value).setSeconds(seconds);
+			if (value instanceof WSBooleanValue) {
 
-            } else {
+				((WSBooleanValue) value).setValue(type == UpDownType.DOWN ? true : false);
 
-                throw new NumberFormatException("Can't convert DateTimeItem to " + value.getClass());
+			} else if (value instanceof WSIntegerValue) {
 
-            }
+				int newVal = type == UpDownType.DOWN ? 100 : 0;
+				int max = ((WSIntegerValue) value).getMaximumValue();
+				int min = ((WSIntegerValue) value).getMinimumValue();
 
-        } else if (type instanceof StringType) {
+				if (newVal >= min && newVal <= max) {
+					((WSIntegerValue) value).setInteger(newVal);
+				} else {
+					throw new NumberFormatException(
+							"Value is not between accetable limits (min=" + min
+									+ ", max=" + max + ")");
+				}
 
-            if (value instanceof WSEnumValue) {
+			} else {
 
-                boolean found = false;
+				throw new NumberFormatException("Can't convert UpDownType to "
+						+ value.getClass());
+			}
 
-                for (IhcEnumValue item : enumValues) {
+		} else {
 
-                    if (item.name.equals(type.toString())) {
+			throw new NumberFormatException("Can't convert "
+					+ type.getClass().toString());
+		}
 
-                        ((WSEnumValue) value).setEnumValueID(item.id);
-                        ((WSEnumValue) value).setEnumName(type.toString());
-                        found = true;
-                        break;
-                    }
-                }
-
-                if (found == false) {
-                    throw new NumberFormatException("Can't find enum value for string " + type.toString());
-                }
-
-            } else {
-
-                throw new NumberFormatException("Can't convert StringType to " + value.getClass());
-
-            }
-
-        } else if (type instanceof PercentType) {
-
-            if (value instanceof WSIntegerValue) {
-
-                int newVal = ((DecimalType) type).intValue();
-                int max = ((WSIntegerValue) value).getMaximumValue();
-                int min = ((WSIntegerValue) value).getMinimumValue();
-
-                if (newVal >= min && newVal <= max) {
-                    ((WSIntegerValue) value).setInteger(newVal);
-                } else {
-                    throw new NumberFormatException(
-                            "Value is not between accetable limits (min=" + min + ", max=" + max + ")");
-                }
-
-            } else {
-
-                throw new NumberFormatException("Can't convert PercentType to " + value.getClass());
-
-            }
-
-        } else if (type instanceof UpDownType) {
-
-            if (value instanceof WSBooleanValue) {
-
-                ((WSBooleanValue) value).setValue(type == UpDownType.DOWN ? true : false);
-
-            } else if (value instanceof WSIntegerValue) {
-
-                int newVal = type == UpDownType.DOWN ? 100 : 0;
-                int max = ((WSIntegerValue) value).getMaximumValue();
-                int min = ((WSIntegerValue) value).getMinimumValue();
-
-                if (newVal >= min && newVal <= max) {
-                    ((WSIntegerValue) value).setInteger(newVal);
-                } else {
-                    throw new NumberFormatException(
-                            "Value is not between accetable limits (min=" + min + ", max=" + max + ")");
-                }
-
-            } else {
-
-                throw new NumberFormatException("Can't convert UpDownType to " + value.getClass());
-            }
-
-        } else {
-
-            throw new NumberFormatException("Can't convert " + type.getClass().toString());
-        }
-
-        return value;
-    }
+		return value;
+	}
 }

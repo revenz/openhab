@@ -10,11 +10,11 @@ package org.openhab.binding.dscalarm.internal.connector;
 
 /**
  * Enum class for the different connector types
- *
+ * 
  * @author Russell Stephens
  * @since 1.6.0
  */
 public enum DSCAlarmConnectorType {
-	IT100,
-	ENVISALINK;
+	SERIAL,
+	TCP;
 }

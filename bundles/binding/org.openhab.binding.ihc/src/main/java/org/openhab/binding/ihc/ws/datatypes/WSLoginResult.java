@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2016, openHAB.org and others.
+ * Copyright (c) 2010-2015, openHAB.org and others.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -9,14 +9,13 @@
 package org.openhab.binding.ihc.ws.datatypes;
 
 import org.openhab.binding.ihc.ws.IhcExecption;
+import org.openhab.binding.ihc.ws.datatypes.WSUser;
 
 /**
- * <p>
- * Java class for WSLoginResult complex type.
- *
- * <p>
- * The following schema fragment specifies the expected content contained within this class.
- *
+ * <p>Java class for WSLoginResult complex type.
+ * 
+ * <p>The following schema fragment specifies the expected content contained within this class.
+ * 
  * <pre>
  * &lt;complexType name="WSLoginResult">
  *   &lt;complexContent>
@@ -32,8 +31,8 @@ import org.openhab.binding.ihc.ws.IhcExecption;
  *   &lt;/complexContent>
  * &lt;/complexType>
  * </pre>
- *
- *
+ * 
+ * 
  */
 public class WSLoginResult extends WSBaseDataType {
 
@@ -43,16 +42,16 @@ public class WSLoginResult extends WSBaseDataType {
     protected boolean loginFailedDueToInsufficientUserRights;
     protected boolean loginFailedDueToAccountInvalid;
 
-    public WSLoginResult() {
-    }
+	public WSLoginResult() {
+	}
 
     /**
      * Gets the value of the loggedInUser property.
-     *
-     * @return
-     *         possible object is
-     *         {@link WSUser }
      * 
+     * @return
+     *     possible object is
+     *     {@link WSUser }
+     *     
      */
     public WSUser getLoggedInUser() {
         return loggedInUser;
@@ -60,11 +59,11 @@ public class WSLoginResult extends WSBaseDataType {
 
     /**
      * Sets the value of the loggedInUser property.
-     *
-     * @param value
-     *            allowed object is
-     *            {@link WSUser }
      * 
+     * @param value
+     *     allowed object is
+     *     {@link WSUser }
+     *     
      */
     public void setLoggedInUser(WSUser value) {
         this.loggedInUser = value;
@@ -72,7 +71,7 @@ public class WSLoginResult extends WSBaseDataType {
 
     /**
      * Gets the value of the loginWasSuccessful property.
-     *
+     * 
      */
     public boolean isLoginWasSuccessful() {
         return loginWasSuccessful;
@@ -80,7 +79,7 @@ public class WSLoginResult extends WSBaseDataType {
 
     /**
      * Sets the value of the loginWasSuccessful property.
-     *
+     * 
      */
     public void setLoginWasSuccessful(boolean value) {
         this.loginWasSuccessful = value;
@@ -88,7 +87,7 @@ public class WSLoginResult extends WSBaseDataType {
 
     /**
      * Gets the value of the loginFailedDueToConnectionRestrictions property.
-     *
+     * 
      */
     public boolean isLoginFailedDueToConnectionRestrictions() {
         return loginFailedDueToConnectionRestrictions;
@@ -96,7 +95,7 @@ public class WSLoginResult extends WSBaseDataType {
 
     /**
      * Sets the value of the loginFailedDueToConnectionRestrictions property.
-     *
+     * 
      */
     public void setLoginFailedDueToConnectionRestrictions(boolean value) {
         this.loginFailedDueToConnectionRestrictions = value;
@@ -104,7 +103,7 @@ public class WSLoginResult extends WSBaseDataType {
 
     /**
      * Gets the value of the loginFailedDueToInsufficientUserRights property.
-     *
+     * 
      */
     public boolean isLoginFailedDueToInsufficientUserRights() {
         return loginFailedDueToInsufficientUserRights;
@@ -112,7 +111,7 @@ public class WSLoginResult extends WSBaseDataType {
 
     /**
      * Sets the value of the loginFailedDueToInsufficientUserRights property.
-     *
+     * 
      */
     public void setLoginFailedDueToInsufficientUserRights(boolean value) {
         this.loginFailedDueToInsufficientUserRights = value;
@@ -120,7 +119,7 @@ public class WSLoginResult extends WSBaseDataType {
 
     /**
      * Gets the value of the loginFailedDueToAccountInvalid property.
-     *
+     * 
      */
     public boolean isLoginFailedDueToAccountInvalid() {
         return loginFailedDueToAccountInvalid;
@@ -128,26 +127,26 @@ public class WSLoginResult extends WSBaseDataType {
 
     /**
      * Sets the value of the loginFailedDueToAccountInvalid property.
-     *
+     * 
      */
     public void setLoginFailedDueToAccountInvalid(boolean value) {
         this.loginFailedDueToAccountInvalid = value;
     }
 
-    @Override
-    public void encodeData(String data) throws IhcExecption {
+	@Override
+	public void encodeData(String data) throws IhcExecption {
+		
+		loginWasSuccessful = parseValueToBoolean( data,
+				"/SOAP-ENV:Envelope/SOAP-ENV:Body/ns1:authenticate2/ns1:loginWasSuccessful");
 
-        loginWasSuccessful = parseValueToBoolean(data,
-                "/SOAP-ENV:Envelope/SOAP-ENV:Body/ns1:authenticate2/ns1:loginWasSuccessful");
+		loginFailedDueToConnectionRestrictions = parseValueToBoolean( data,
+				"/SOAP-ENV:Envelope/SOAP-ENV:Body/ns1:authenticate2/ns1:loginFailedDueToConnectionRestrictions");
 
-        loginFailedDueToConnectionRestrictions = parseValueToBoolean(data,
-                "/SOAP-ENV:Envelope/SOAP-ENV:Body/ns1:authenticate2/ns1:loginFailedDueToConnectionRestrictions");
+		loginFailedDueToInsufficientUserRights = parseValueToBoolean( data,
+				"/SOAP-ENV:Envelope/SOAP-ENV:Body/ns1:authenticate2/ns1:loginFailedDueToInsufficientUserRights");
 
-        loginFailedDueToInsufficientUserRights = parseValueToBoolean(data,
-                "/SOAP-ENV:Envelope/SOAP-ENV:Body/ns1:authenticate2/ns1:loginFailedDueToInsufficientUserRights");
-
-        loginFailedDueToAccountInvalid = parseValueToBoolean(data,
-                "/SOAP-ENV:Envelope/SOAP-ENV:Body/ns1:authenticate2/ns1:loginFailedDueToAccountInvalid");
-    }
+		loginFailedDueToAccountInvalid = parseValueToBoolean( data,
+				"/SOAP-ENV:Envelope/SOAP-ENV:Body/ns1:authenticate2/ns1:loginFailedDueToAccountInvalid");
+	}
 
 }

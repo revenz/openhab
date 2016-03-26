@@ -25,38 +25,37 @@ package net.wimpi.modbus.procimg;
  * @author Dieter Wimberger
  * @version @version@ (@date@)
  */
-public class SimpleDigitalOut implements DigitalOut {
+public class SimpleDigitalOut 
+    implements DigitalOut {
 
-    /**
-     * Field for the digital out state.
-     */
-    protected boolean m_Set;
+  /**
+   * Field for the digital out state.
+   */
+   protected boolean m_Set;
 
-    /**
-     * Constructs a new <tt>SimpleDigitalOut</tt> instance.
-     * It's state will be invalid.
-     */
-    public SimpleDigitalOut() {
-    }// constructor
+  /**
+   * Constructs a new <tt>SimpleDigitalOut</tt> instance.
+   * It's state will be invalid.
+   */
+  public SimpleDigitalOut() {
+  }//constructor
 
-    /**
-     * Constructs a new <tt>SimpleDigitalOut</tt> instance
-     * with the given state.
-     *
-     * @param b true if set, false otherwise.
-     */
-    public SimpleDigitalOut(boolean b) {
-        set(b);
-    }// constructor(boolean)
+  /**
+   * Constructs a new <tt>SimpleDigitalOut</tt> instance
+   * with the given state.
+   *
+   * @param b true if set, false otherwise.
+   */
+  public SimpleDigitalOut(boolean b) {
+    set(b);
+  }//constructor(boolean)
 
-    @Override
-    public boolean isSet() {
-        return m_Set;
-    }// isSet
+  public boolean isSet() {
+    return m_Set;
+  }//isSet
 
-    @Override
-    public synchronized void set(boolean b) {
-        m_Set = b;
-    }// set
+  public synchronized void set(boolean b) {
+    m_Set = b;
+  }//set
 
-}// SimpleDigitalIn
+}//SimpleDigitalIn

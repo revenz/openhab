@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2016, openHAB.org and others.
+ * Copyright (c) 2010-2015, openHAB.org and others.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -24,108 +24,109 @@ import org.slf4j.LoggerFactory;
 
 /**
  * This is a pure Java TTS service implementation, based on SpeechDispatcher.
- *
+ * 
  * @author Gaël L'hopital
  * @since 1.6.0
- *
+ * 
  */
 public class TTSServiceSpeechDispatcher implements TTSService, ManagedService {
 
-    private static final Logger logger = LoggerFactory.getLogger(TTSServiceSpeechDispatcher.class);
+	private static final Logger logger = LoggerFactory.getLogger(TTSServiceSpeechDispatcher.class);
+	
+	SpeechDispatcherConnection defaultOutput = null;
+	
+	/** Map table to store all available speech dispatchers configured by the user */
+	protected Map<String, SpeechDispatcherConnection> deviceConfigCache = null;
+	
+	/** RegEx to validate a config <code>'^(.*?)\\.(host|port)$'</code> */
+	private static final Pattern EXTRACT_CONFIG_PATTERN = Pattern.compile("^(.*?)\\.(host|port)$");
+	
+	public void activate() {		
+		logger.debug("Activate");
+	}
 
-    SpeechDispatcherConnection defaultOutput = null;
+	public void deactivate() {
+		logger.debug("Deactivate");
+		closeAllConnections();
+	}
 
-    /** Map table to store all available speech dispatchers configured by the user */
-    protected Map<String, SpeechDispatcherConnection> deviceConfigCache = null;
+	private void closeAllConnections() {
+		 for (Entry<String, SpeechDispatcherConnection> deviceConfig : deviceConfigCache.entrySet() ) {
+			 SpeechDispatcherConnection connection = deviceConfig.getValue();
+			 connection.closeConnection();
+		 }
+	}
 
-    /** RegEx to validate a config <code>'^(.*?)\\.(host|port)$'</code> */
-    private static final Pattern EXTRACT_CONFIG_PATTERN = Pattern.compile("^(.*?)\\.(host|port)$");
+	/**
+	 * {@inheritDoc}
+	 */
+	public void say(String text, String voiceName, String outputDevice) {
+		SpeechDispatcherConnection connection = null;
+		if (outputDevice != null) {
+			connection = deviceConfigCache.get(outputDevice);
+		} else {
+			connection = defaultOutput;
+		}
+		
+		if (connection != null) {
+			connection.say(text, voiceName);	
+		} else {
+			logger.error("Output device not configured [{}]", outputDevice);
+		}
+		
+	}
 
-    public void activate() {
-        logger.debug("Activate");
-    }
+	public void updated(Dictionary<String, ?> properties) throws ConfigurationException {
 
-    public void deactivate() {
-        logger.debug("Deactivate");
-        closeAllConnections();
-    }
+		if (properties != null) {
+			Enumeration<String> keys = properties.keys();
+			
+			if ( deviceConfigCache == null ) {
+				deviceConfigCache = new HashMap<String, SpeechDispatcherConnection>();
+			}
+			
+			while (keys.hasMoreElements()) {
+				String key = (String) keys.nextElement();
 
-    private void closeAllConnections() {
-        for (Entry<String, SpeechDispatcherConnection> deviceConfig : deviceConfigCache.entrySet()) {
-            SpeechDispatcherConnection connection = deviceConfig.getValue();
-            connection.closeConnection();
-        }
-    }
+				// the property-key enumeration can contain additional keys that we
+				// don't want to process here ...
+				if ("service.pid".equals(key) || "os".equals(key)) {
+					continue;
+				}
+				
+				Matcher matcher = EXTRACT_CONFIG_PATTERN.matcher(key);
 
-    /**
-     * {@inheritDoc}
-     */
-    public void say(String text, String voiceName, String outputDevice) {
-        SpeechDispatcherConnection connection = null;
-        if (outputDevice != null) {
-            connection = deviceConfigCache.get(outputDevice);
-        } else {
-            connection = defaultOutput;
-        }
+				if (!matcher.matches()) {
+					logger.debug("Given config key '" + key + "' does not follow the expected pattern '<id>.<host|port>'");
+					continue;
+				}
 
-        if (connection != null) {
-            connection.say(text, voiceName);
-        } else {
-            logger.error("Output device not configured [{}]", outputDevice);
-        }
+				matcher.reset();
+				matcher.find();
 
-    }
+				String deviceId = matcher.group(1);
 
-    public void updated(Dictionary<String, ?> properties) throws ConfigurationException {
+				SpeechDispatcherConnection deviceConfig = deviceConfigCache.get(deviceId);
 
-        if (properties != null) {
-            Enumeration<String> keys = properties.keys();
+				if (deviceConfig == null) {
+					deviceConfig = new SpeechDispatcherConnection();
+					deviceConfigCache.put(deviceId, deviceConfig);
+					defaultOutput = deviceConfig;
+				}
 
-            if (deviceConfigCache == null) {
-                deviceConfigCache = new HashMap<String, SpeechDispatcherConnection>();
-            }
+				String configKey = matcher.group(2);
+				String value = (String) properties.get(key);
 
-            while (keys.hasMoreElements()) {
-                String key = keys.nextElement();
-
-                // the property-key enumeration can contain additional keys that we
-                // don't want to process here ...
-                if ("service.pid".equals(key) || "os".equals(key)) {
-                    continue;
-                }
-
-                Matcher matcher = EXTRACT_CONFIG_PATTERN.matcher(key);
-
-                if (!matcher.matches()) {
-                    logger.debug(
-                            "Given config key '" + key + "' does not follow the expected pattern '<id>.<host|port>'");
-                    continue;
-                }
-
-                matcher.reset();
-                matcher.find();
-
-                String deviceId = matcher.group(1);
-
-                SpeechDispatcherConnection deviceConfig = deviceConfigCache.get(deviceId);
-
-                if (deviceConfig == null) {
-                    deviceConfig = new SpeechDispatcherConnection();
-                    deviceConfigCache.put(deviceId, deviceConfig);
-                    defaultOutput = deviceConfig;
-                }
-
-                String configKey = matcher.group(2);
-                String value = (String) properties.get(key);
-
-                if ("host".equals(configKey)) {
-                    deviceConfig.host = value;
-                } else if ("port".equals(configKey)) {
-                    deviceConfig.port = value;
-                } else {
-                    throw new ConfigurationException(configKey, "the given configKey '" + configKey + "' is unknown");
-                }
-            }
-        }
-    }
+				if ("host".equals(configKey)) {
+					deviceConfig.host = value;
+				} else if ("port".equals(configKey)) {
+					deviceConfig.port = value;
+				} else {
+					throw new ConfigurationException(configKey, "the given configKey '" + configKey + "' is unknown");
+				}
+			}
+		}
+	}
 }
+
+

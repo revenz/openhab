@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2016, openHAB.org and others.
+ * Copyright (c) 2010-2015, openHAB.org and others.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -16,64 +16,65 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Base Class for a ReceiveFrameContainer
- *
+ * 
  * @author Robin Lenz
  * @since 1.1.0
  */
 public abstract class AbstractReceiveFrameContainer implements IReceiveFrameContainer {
+	
+	private static Logger logger = LoggerFactory.getLogger(AbstractReceiveFrameContainer.class);
 
-    private static Logger logger = LoggerFactory.getLogger(AbstractReceiveFrameContainer.class);
+	protected List<ReceiveFrame> receiveFrames;
 
-    protected List<ReceiveFrame> receiveFrames;
+	/**
+	 * Constructor
+	 */
+	public AbstractReceiveFrameContainer() {
+		receiveFrames = new ArrayList<ReceiveFrame>();
+	}
 
-    /**
-     * Constructor
-     */
-    public AbstractReceiveFrameContainer() {
-        receiveFrames = new ArrayList<ReceiveFrame>();
-    }
+	/**
+	 * {@inheritDoc}
+	 */
+	@Override
+	public void process(IByteProvider byteProvider) {
+		while (!isReceivingCompleted()) {
+			parseFrame(byteProvider);
+		}
+	}
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void process(IByteProvider byteProvider) {
-        while (!isReceivingCompleted()) {
-            parseFrame(byteProvider);
-        }
-    }
+	/**
+	 * {@inheritDoc}
+	 */
+	@Override
+	public abstract boolean isReceivingCompleted();
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public abstract boolean isReceivingCompleted();
+	/**
+	 * {@inheritDoc}
+	 */
+	@Override
+	public abstract ReceiveFrame getAnswerFrame();
+	
+	
+	private void parseFrame(IByteProvider byteProvider) {
+		try {
+			byte currentByte = byteProvider.getByte();
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public abstract ReceiveFrame getAnswerFrame();
+			if (currentByte == Frame.START_BYTE) {
+				int length = byteProvider.getByte();
 
-    private void parseFrame(IByteProvider byteProvider) {
-        try {
-            byte currentByte = byteProvider.getByte();
+				if (length > 0) {
+					byte[] data = byteProvider.getBytes(length + 1);
 
-            if (currentByte == Frame.START_BYTE) {
-                int length = byteProvider.getByte();
+					ReceiveFrame frame = new ReceiveFrame();
+					frame.parse(data);
 
-                if (length > 0) {
-                    byte[] data = byteProvider.getBytes(length + 1);
-
-                    ReceiveFrame frame = new ReceiveFrame();
-                    frame.parse(data);
-
-                    receiveFrames.add(frame);
-                }
-            }
-        } catch (Exception e) {
-            logger.error("Error while parsing ReceiveFrame");
-        }
-    }
+					receiveFrames.add(frame);
+				}
+			}
+		} catch (Exception e) {
+			logger.error("Error while parsing ReceiveFrame");
+		}
+	}
 
 }

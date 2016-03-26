@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2016, openHAB.org and others.
+ * Copyright (c) 2010-2015, openHAB.org and others.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -13,7 +13,6 @@ import static org.quartz.JobBuilder.newJob;
 import static org.quartz.SimpleScheduleBuilder.simpleSchedule;
 import static org.quartz.TriggerBuilder.newTrigger;
 import static org.quartz.impl.matchers.GroupMatcher.jobGroupEquals;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Dictionary;
@@ -23,7 +22,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
 import org.openhab.binding.hdanywhere.HDanywhereBindingProvider;
 import org.openhab.core.binding.AbstractActiveBinding;
 import org.openhab.core.library.types.DecimalType;
@@ -51,322 +49,327 @@ import org.slf4j.LoggerFactory;
  * This binding does not use the UDP control or RS232 control channels provided by HDanywhere but
  * instead uses the output from the built-in webserver to steer the matrix. The main advantage is
  * that actual input/output port mappings can be polled, which is not provided by the "standard"
- * integration interfaces.
- *
+ * integration interfaces. 
+ * 
  * The binding is developed for matrixes with firmware version V1.2(20131222)
  *
  * @author Karel Goderis
  * @since 1.4.0
  */
-public class HDanywhereBinding extends AbstractActiveBinding<HDanywhereBindingProvider>implements ManagedService {
+public class HDanywhereBinding extends AbstractActiveBinding<HDanywhereBindingProvider> implements ManagedService  {
 
-    private static final Logger logger = LoggerFactory.getLogger(HDanywhereBinding.class);
+	private static final Logger logger = LoggerFactory.getLogger(HDanywhereBinding.class);
 
-    /** the refresh interval which is used to check for changes in the binding configurations */
-    private static long refreshInterval = 5000;
-    /** the timeout to use for connecting to a given host (defaults to 5000 milliseconds) */
-    private static int timeout = 5000;
+	/** the refresh interval which is used to check for changes in the binding configurations */
+	private static long refreshInterval = 5000;
+	/** the timeout to use for connecting to a given host (defaults to 5000 milliseconds) */
+	private static int timeout = 5000;
 
-    private static final Pattern EXTRACT_HDANYWHERE_CONFIG_PATTERN = Pattern
-            .compile("(.*)\\.(.*)\\.(.*)\\.(.*)\\.(ports)$");
+	private static final Pattern EXTRACT_HDANYWHERE_CONFIG_PATTERN = Pattern.compile("(.*)\\.(.*)\\.(.*)\\.(.*)\\.(ports)$");
 
-    /** structure to track configured matrices */
-    private HashMap<String, Integer> portMappingCache = new HashMap<String, Integer>();
-    /** structure to store actual input/output states */
-    private HashMap<String, Integer> matrixCache = new HashMap<String, Integer>();
+	/** structure to track configured matrices */
+	private HashMap<String, Integer> portMappingCache = new HashMap<String, Integer>();
+	/** structure to store actual input/output states */
+	private HashMap<String, Integer> matrixCache = new HashMap<String, Integer>();
 
-    @SuppressWarnings("rawtypes")
-    @Override
-    public void updated(Dictionary config) throws ConfigurationException {
+	@SuppressWarnings("rawtypes")
+	@Override
+	public void updated(Dictionary config) throws ConfigurationException {
 
-        if (config != null) {
+		if (config != null) {
 
-            Enumeration keys = config.keys();
-            while (keys.hasMoreElements()) {
+			Enumeration keys = config.keys();
+			while (keys.hasMoreElements()) {
 
-                String key = (String) keys.nextElement();
+				String key = (String) keys.nextElement();
 
-                Matcher matcher = EXTRACT_HDANYWHERE_CONFIG_PATTERN.matcher(key);
-                if (!matcher.matches()) {
-                    logger.debug("given hdanywhere-config-key '" + key
-                            + "' does not follow the expected pattern '<host_IP_Address>.ports'");
-                    continue;
-                }
+				Matcher matcher = EXTRACT_HDANYWHERE_CONFIG_PATTERN.matcher(key);
+				if (!matcher.matches()) {
+					logger.debug("given hdanywhere-config-key '"
+							+ key + "' does not follow the expected pattern '<host_IP_Address>.ports'");
+					continue;
+				}
 
-                matcher.reset();
-                matcher.find();
+				matcher.reset();
+				matcher.find();
 
-                String hostIP = matcher.group(1) + "." + matcher.group(2) + "." + matcher.group(3) + "."
-                        + matcher.group(4);
-                String configKey = matcher.group(5);
-                String value = (String) config.get(key);
+				String hostIP = matcher.group(1)+"."+matcher.group(2)+"."+matcher.group(3)+"."+matcher.group(4);	
+				String configKey = matcher.group(5);
+				String value = (String) config.get(key);
 
-                if ("ports".equals(configKey)) {
-                    matrixCache.put(hostIP, Integer.valueOf(value));
-                } else {
-                    throw new ConfigurationException(configKey, "the given configKey '" + configKey + "' is unknown");
-                }
-            }
-        }
+				if ("ports".equals(configKey)) {
+					matrixCache.put(hostIP, Integer.valueOf(value));
+				} else {
+					throw new ConfigurationException(configKey,
+							"the given configKey '" + configKey + "' is unknown");
+				}
+			}
+		}
 
-        setProperlyConfigured(true);
+		setProperlyConfigured(true);
 
-    }
+	}	
 
-    @Override
-    public void activate() {
-        // Nothing to do here. We start the binding when the first item bindigconfig is processed
-    }
 
-    @Override
-    public void deactivate() {
-        // unschedule all the quartz jobs
+	public void activate() {
+		// Nothing to do here. We start the binding when the first item bindigconfig is processed
+	}
 
-        Scheduler sched = null;
-        try {
-            sched = StdSchedulerFactory.getDefaultScheduler();
-        } catch (SchedulerException e) {
-            logger.error("An exception occurred while getting a reference to the Quarz Scheduler");
-        }
+	public void deactivate() {
+		//unschedule all the quartz jobs
 
-        for (HDanywhereBindingProvider provider : providers) {
-            try {
-                for (JobKey jobKey : sched.getJobKeys(jobGroupEquals("HDanywhere-" + provider.toString()))) {
-                    sched.deleteJob(jobKey);
-                }
-            } catch (SchedulerException e) {
-                logger.error("An exception occurred while deleting the HDanywhere Quartz jobs ({})", e.getMessage());
-            }
-        }
-    }
+		Scheduler sched = null;
+		try {
+			sched = StdSchedulerFactory.getDefaultScheduler();
+		} catch (SchedulerException e) {
+			logger.error("An exception occurred while getting a reference to the Quarz Scheduler");
+		}
 
-    @Override
-    protected void internalReceiveCommand(String itemName, Command command) {
+		for (HDanywhereBindingProvider provider : providers) {
+			try {
+				for(JobKey jobKey : sched.getJobKeys(jobGroupEquals("HDanywhere-"+provider.toString()))) {
+					sched.deleteJob(jobKey);
+				}
+			} catch (SchedulerException e) {
+				logger.error("An exception occurred while deleting the HDanywhere Quartz jobs ({})",e.getMessage());
+			}
+		}
+	}
 
-        HDanywhereBindingProvider provider = findFirstMatchingBindingProvider(itemName);
+	@Override
+	protected void internalReceiveCommand(String itemName,
+			Command command) {
 
-        if (provider == null) {
-            logger.trace("doesn't find matching binding provider [itemName={}, command={}]", itemName, command);
-            return;
-        }
+		HDanywhereBindingProvider provider = findFirstMatchingBindingProvider(itemName);
 
-        List<String> hosts = provider.getHosts(itemName);
-        int sourcePort = Integer.valueOf(command.toString());
+		if (provider == null) {
+			logger.trace("doesn't find matching binding provider [itemName={}, command={}]", itemName, command);
+			return;
+		}
 
-        for (String aHost : hosts) {
+		List<String> hosts = provider.getHosts(itemName);
+		int sourcePort = Integer.valueOf(command.toString());
 
-            Integer numberOfPorts = matrixCache.get(aHost);
-            if (numberOfPorts == null) {
-                // we default to the smallest matrix currently sold by HDanywhere
-                numberOfPorts = 4;
-            }
+		for(String aHost : hosts) {
 
-            if (sourcePort > numberOfPorts) {
-                // nice try - we can switch to a port that does not physically exist
-                logger.warn("{} goes beyond the physical number of {} ports available on the matrix {}",
-                        new Object[] { sourcePort, numberOfPorts, aHost });
-            } else {
+			Integer numberOfPorts = matrixCache.get(aHost);
+			if(numberOfPorts == null) {
+				// we default to the smallest matrix currently sold by HDanywhere
+				numberOfPorts = 4;
+			}
 
-                List<Integer> ports = provider.getPorts(aHost, itemName);
+			if(sourcePort > numberOfPorts) {
+				// nice try - we can switch to a port that does not physically exist
+				logger.warn("{} goes beyond the physical number of {} ports available on the matrix {}",new Object[]{sourcePort,numberOfPorts,aHost});
+			} else {
 
-                String httpMethod = "GET";
-                String url = "http://" + aHost + "/switch.cgi?command=3&data0=";
+				List<Integer> ports = provider.getPorts(aHost,itemName);
 
-                for (Integer aPort : ports) {
-                    url = url + aPort.toString() + "&data1=";
-                    url = url + command.toString() + "&checksum=";
+				String httpMethod =	"GET";
+				String url = "http://"+aHost+"/switch.cgi?command=3&data0=";
 
-                    int checksum = 3 + aPort + sourcePort;
-                    url = url + String.valueOf(checksum);
+				for(Integer aPort : ports) {
+					url = url + aPort.toString()+"&data1=";
+					url = url + command.toString()+"&checksum=";
 
-                    if (isNotBlank(httpMethod) && isNotBlank(url)) {
-                        String response = HttpUtil.executeUrl(httpMethod, url, null, null, null, timeout);
+					int checksum = 3 + aPort + sourcePort;
+					url = url + String.valueOf(checksum);
 
-                        Pattern p = Pattern.compile("The output " + aPort + " select input (.*).");
-                        Matcher m = p.matcher(response);
-                        while (m.find()) {
-                            List<Class<? extends State>> stateTypeList = new ArrayList<Class<? extends State>>();
-                            stateTypeList.add(DecimalType.class);
-                            State state = TypeParser.parseState(stateTypeList, m.group(1));
+					if (isNotBlank(httpMethod) && isNotBlank(url)) {
+						String response = HttpUtil.executeUrl(httpMethod, url, null, null, null, timeout);
 
-                            if (!portMappingCache.containsKey(aHost + ":" + aPort)) {
-                                portMappingCache.put(aHost + ":" + aPort, Integer.valueOf(m.group(1)));
-                                eventPublisher.postUpdate(itemName, state);
-                            } else {
-                                int cachedValue = portMappingCache.get(aHost + ":" + aPort);
-                                if (cachedValue != Integer.valueOf(m.group(1))) {
-                                    portMappingCache.put(aHost + ":" + aPort, Integer.valueOf(m.group(1)));
-                                    eventPublisher.postUpdate(itemName, state);
-                                }
-                            }
+						Pattern p = Pattern.compile("The output "+aPort+" select input (.*).");
+						Matcher m = p.matcher(response);
+						while (m.find()){
+							List<Class<? extends State>> stateTypeList = new ArrayList<Class<? extends State>>();
+							stateTypeList.add(DecimalType.class);
+							State state = TypeParser.parseState(stateTypeList, m.group(1));
 
-                        }
-                    }
-                }
-            }
-        }
-    }
+							if(!portMappingCache.containsKey(aHost+":"+aPort)) {
+								portMappingCache.put(aHost+":"+aPort, Integer.valueOf(m.group(1)));
+								eventPublisher.postUpdate(itemName,(State) state);
+							} else {
+								int cachedValue = portMappingCache.get(aHost+":"+aPort);
+								if(cachedValue != Integer.valueOf(m.group(1))) {
+									portMappingCache.put(aHost+":"+aPort, Integer.valueOf(m.group(1)));
+									eventPublisher.postUpdate(itemName,(State) state);
+								}
+							}
 
-    /**
-     * Find the first matching {@link HDanywhereBindingProvider}
-     * according to <code>itemName</code>
-     * 
-     * @param itemName
-     * 
-     * @return the matching binding provider or <code>null</code> if no binding
-     *         provider could be found
-     */
-    protected HDanywhereBindingProvider findFirstMatchingBindingProvider(String itemName) {
-        HDanywhereBindingProvider firstMatchingProvider = null;
-        for (HDanywhereBindingProvider provider : providers) {
-            List<String> hosts = provider.getHosts(itemName);
-            if (hosts != null && hosts.size() > 0) {
-                firstMatchingProvider = provider;
-                break;
-            }
-        }
-        return firstMatchingProvider;
-    }
+						}
+					}
+				}
+			}
+		}
+	}
 
-    @Override
-    protected void execute() {
-        if (isProperlyConfigured()) {
 
-            Scheduler sched = null;
-            try {
-                sched = StdSchedulerFactory.getDefaultScheduler();
-            } catch (SchedulerException e) {
-                logger.error("An exception occurred while getting a reference to the Quartz Scheduler");
-            }
+	/**
+	 * Find the first matching {@link HDanywhereBindingProvider}
+	 * according to <code>itemName</code>
+	 * 
+	 * @param itemName
+	 * 
+	 * @return the matching binding provider or <code>null</code> if no binding
+	 *         provider could be found
+	 */
+	protected HDanywhereBindingProvider findFirstMatchingBindingProvider(String itemName) {
+		HDanywhereBindingProvider firstMatchingProvider = null;
+		for (HDanywhereBindingProvider provider : providers) {
+			List<String> hosts = provider.getHosts(itemName);
+			if (hosts != null && hosts.size() > 0) {
+				firstMatchingProvider = provider;
+				break;
+			}
+		}
+		return firstMatchingProvider;
+	}
 
-            for (HDanywhereBindingProvider provider : providers) {
+	@Override
+	protected void execute() {
+		if(isProperlyConfigured()) {
 
-                HashMap<String, Integer> compiledList = provider.getIntervalList();
+			Scheduler sched = null;
+			try {
+				sched =  StdSchedulerFactory.getDefaultScheduler();
+			} catch (SchedulerException e) {
+				logger.error("An exception occurred while getting a reference to the Quartz Scheduler");
+			}
 
-                if (compiledList != null) {
-                    Iterator<String> pbcIterator = compiledList.keySet().iterator();
-                    while (pbcIterator.hasNext()) {
-                        String aHost = pbcIterator.next();
+			for (HDanywhereBindingProvider provider : providers) {
 
-                        boolean jobExists = false;
+				HashMap<String, Integer> compiledList = ((HDanywhereBindingProvider)provider).getIntervalList();
 
-                        // enumerate each job group
-                        try {
-                            for (String group : sched.getJobGroupNames()) {
-                                // enumerate each job in group
-                                for (JobKey jobKey : sched.getJobKeys(jobGroupEquals(group))) {
-                                    if (jobKey.getName().equals(aHost)) {
-                                        jobExists = true;
-                                        break;
-                                    }
-                                }
-                            }
-                        } catch (SchedulerException e1) {
-                            logger.error("An exception occurred while quering the Quartz Scheduler ({})",
-                                    e1.getMessage());
-                        }
+				if(compiledList != null) {
+					Iterator<String> pbcIterator = compiledList.keySet().iterator();
+					while(pbcIterator.hasNext()) {
+						String aHost = pbcIterator.next();
 
-                        if (!jobExists) {
-                            // set up the Quartz jobs
-                            JobDataMap map = new JobDataMap();
-                            map.put("host", aHost);
-                            map.put("binding", this);
+						boolean jobExists = false;
 
-                            JobDetail job = newJob(HDanywhereBinding.PollJob.class)
-                                    .withIdentity(aHost, "HDanywhere-" + provider.toString()).usingJobData(map).build();
+						// enumerate each job group
+						try {
+							for(String group: sched.getJobGroupNames()) {
+								// enumerate each job in group
+								for(JobKey jobKey : sched.getJobKeys(jobGroupEquals(group))) {
+									if(jobKey.getName().equals(aHost)) {
+										jobExists = true;
+										break;
+									}
+								}
+							}
+						} catch (SchedulerException e1) {
+							logger.error("An exception occurred while quering the Quartz Scheduler ({})",e1.getMessage());
+						}
 
-                            Trigger trigger = newTrigger().withIdentity(aHost, "HDanywhere-" + provider.toString())
-                                    .startNow().withSchedule(simpleSchedule().repeatForever()
-                                            .withIntervalInSeconds(compiledList.get(aHost)))
-                                    .build();
+						if(!jobExists) {
+							// set up the Quartz jobs
+							JobDataMap map = new JobDataMap();
+							map.put("host", aHost);
+							map.put("binding", this);
 
-                            try {
-                                sched.scheduleJob(job, trigger);
-                            } catch (SchedulerException e) {
-                                logger.error("An exception occurred while scheduling a Quartz Job");
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+							JobDetail job = newJob(HDanywhereBinding.PollJob.class)
+									.withIdentity(aHost, "HDanywhere-"+provider.toString())
+									.usingJobData(map)
+									.build();
 
-    @Override
-    protected long getRefreshInterval() {
-        return refreshInterval;
-    }
+							Trigger trigger = newTrigger()
+									.withIdentity(aHost, "HDanywhere-"+provider.toString())
+									.startNow()
+									.withSchedule(simpleSchedule()
+											.repeatForever()
+											.withIntervalInSeconds(compiledList.get(aHost)))            
+											.build();
 
-    @Override
-    protected String getName() {
-        return "HDanywhere Refresh Service";
-    }
+							try {
+								sched.scheduleJob(job, trigger);
+							} catch (SchedulerException e) {
+								logger.error("An exception occurred while scheduling a Quartz Job");
+							}
+						}
+					} 
+				}
+			}		
+		} 
+	}
 
-    /**
-     * Quartz Job that does poll the HDanwywhere matrix and parses the html string returned
-     * by the built-in webserver
-     * 
-     */
-    public static class PollJob implements Job {
 
-        @Override
-        public void execute(JobExecutionContext context) throws JobExecutionException {
-            // get the reference to the Stick
-            JobDataMap dataMap = context.getJobDetail().getJobDataMap();
-            String host = (String) dataMap.get("host");
-            HDanywhereBinding theBinding = (HDanywhereBinding) dataMap.get("binding");
+	@Override
+	protected long getRefreshInterval() {
+		return refreshInterval;
+	}
 
-            String httpMethod = "GET";
-            String url = "http://" + host + "/status_show.shtml";
+	@Override
+	protected String getName() {
+		return "HDanywhere Refresh Service";
+	}
 
-            if (isNotBlank(httpMethod) && isNotBlank(url)) {
-                String response = HttpUtil.executeUrl(httpMethod, url, null, null, null, timeout);
+	/**
+	 * Quartz Job that does poll the HDanwywhere matrix and parses the html string returned
+	 * by the built-in webserver
+	 * 
+	 */
+	public static class PollJob implements Job {
 
-                Integer numberOfPorts = theBinding.matrixCache.get(host);
-                if (numberOfPorts == null) {
-                    // we default to the smallest matrix currently sold by HDanywhere
-                    numberOfPorts = 4;
-                }
+		@Override
+		public void execute(JobExecutionContext context)
+				throws JobExecutionException {
+			// get the reference to the Stick
+			JobDataMap dataMap = context.getJobDetail().getJobDataMap();
+			String host = (String) dataMap.get("host");
+			HDanywhereBinding theBinding = (HDanywhereBinding) dataMap.get("binding");
 
-                if (response != null) {
-                    for (int i = 1; i <= numberOfPorts; i++) {
-                        Pattern p = Pattern.compile("var out" + i + "var = (.*);");
-                        Matcher m = p.matcher(response);
+			String httpMethod =	"GET";
+			String url = "http://"+host+"/status_show.shtml";
 
-                        while (m.find()) {
-                            List<Class<? extends State>> stateTypeList = new ArrayList<Class<? extends State>>();
-                            stateTypeList.add(DecimalType.class);
-                            State state = TypeParser.parseState(stateTypeList, m.group(1));
+			if (isNotBlank(httpMethod) && isNotBlank(url)) {
+				String response = HttpUtil.executeUrl(httpMethod, url, null, null, null, timeout);
 
-                            for (HDanywhereBindingProvider provider : theBinding.providers) {
-                                Collection<String> theItems = provider.getItemNames();
+				Integer numberOfPorts = theBinding.matrixCache.get(host);
+				if(numberOfPorts == null) {
+					// we default to the smallest matrix currently sold by HDanywhere
+					numberOfPorts = 4;
+				}
 
-                                for (String anItem : theItems) {
-                                    List<Integer> itemPorts = provider.getPorts(host, anItem);
+				if(response != null) {
+					for(int i=1;i<=numberOfPorts;i++) {
+						Pattern p = Pattern.compile("var out"+i+"var = (.*);");
+						Matcher m = p.matcher(response);
 
-                                    for (Integer aPort : itemPorts) {
-                                        if (aPort == i) {
+						while (m.find()){
+							List<Class<? extends State>> stateTypeList = new ArrayList<Class<? extends State>>();
+							stateTypeList.add(DecimalType.class);
+							State state = TypeParser.parseState(stateTypeList, m.group(1));
 
-                                            if (!theBinding.portMappingCache.containsKey(host + ":" + aPort)) {
-                                                theBinding.portMappingCache.put(host + ":" + aPort,
-                                                        Integer.valueOf(m.group(1)));
-                                                theBinding.eventPublisher.postUpdate(anItem, state);
-                                            } else {
-                                                int cachedValue = theBinding.portMappingCache.get(host + ":" + aPort);
-                                                if (cachedValue != Integer.valueOf(m.group(1))) {
-                                                    theBinding.portMappingCache.put(host + ":" + aPort,
-                                                            Integer.valueOf(m.group(1)));
-                                                    theBinding.eventPublisher.postUpdate(anItem, state);
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+							for (HDanywhereBindingProvider provider : theBinding.providers) {
+								Collection<String> theItems = provider.getItemNames();
+
+								for(String anItem : theItems) {
+									List<Integer> itemPorts = provider.getPorts(host, anItem);
+
+									for(Integer aPort : itemPorts) {
+										if(aPort == i) {
+
+											if(!theBinding.portMappingCache.containsKey(host+":"+aPort)) {
+												theBinding.portMappingCache.put(host+":"+aPort, Integer.valueOf(m.group(1)));
+												theBinding.eventPublisher.postUpdate(anItem,(State) state);
+											} else {
+												int cachedValue = theBinding.portMappingCache.get(host+":"+aPort);
+												if(cachedValue != Integer.valueOf(m.group(1))) {
+													theBinding.portMappingCache.put(host+":"+aPort, Integer.valueOf(m.group(1)));
+													theBinding.eventPublisher.postUpdate(anItem,(State) state);
+												}
+											}
+										}
+									}								
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 }
+
+

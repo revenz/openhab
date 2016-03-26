@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2016, openHAB.org and others.
+ * Copyright (c) 2010-2015, openHAB.org and others.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -32,128 +32,119 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /***
- * ZWaveMultiLevelSensorConverter class. Converter for communication with the
+ * ZWaveMultiLevelSensorConverter class. Converter for communication with the 
  * {@link ZWaveMultiLevelSensorCommandClass}. Implements polling of the sensor
  * status and receiving of sensor events.
- * 
  * @author Jan-Willem Spuij
  * @since 1.4.0
  */
 public class ZWaveMeterConverter extends ZWaveCommandClassConverter<ZWaveMeterCommandClass> {
 
-    private static final Logger logger = LoggerFactory.getLogger(ZWaveMeterConverter.class);
-    private static final int REFRESH_INTERVAL = 0; // refresh interval in seconds for the multi level switch;
+	private static final Logger logger = LoggerFactory.getLogger(ZWaveMeterConverter.class);
+	private static final int REFRESH_INTERVAL = 0; // refresh interval in seconds for the multi level switch;
 
-    /**
-     * Constructor. Creates a new instance of the {@link ZWaveMeterConverter} class.
-     * 
-     * @param controller the {@link ZWaveController} to use for sending messages.
-     * @param eventPublisher the {@link EventPublisher} to use to publish events.
-     */
-    public ZWaveMeterConverter(ZWaveController controller, EventPublisher eventPublisher) {
-        super(controller, eventPublisher);
+	/**
+	 * Constructor. Creates a new instance of the {@link ZWaveMeterConverter} class.
+	 * @param controller the {@link ZWaveController} to use for sending messages.
+	 * @param eventPublisher the {@link EventPublisher} to use to publish events.
+	 */
+	public ZWaveMeterConverter(ZWaveController controller, EventPublisher eventPublisher) {
+		super(controller, eventPublisher);
+		
+		// State and commmand converters used by this converter. 
+		this.addStateConverter(new BigDecimalDecimalTypeConverter());
+		this.addStateConverter(new BigDecimalOnOffTypeConverter());
+		this.addStateConverter(new BigDecimalOpenClosedTypeConverter());
+	}
 
-        // State and commmand converters used by this converter.
-        this.addStateConverter(new BigDecimalDecimalTypeConverter());
-        this.addStateConverter(new BigDecimalOnOffTypeConverter());
-        this.addStateConverter(new BigDecimalOpenClosedTypeConverter());
-    }
+	/**
+	 * {@inheritDoc}
+	 */
+	@Override
+	public void executeRefresh(ZWaveNode node, 
+			ZWaveMeterCommandClass commandClass, int endpointId, Map<String,String> arguments) {
+		String meterScale = arguments.get("meter_scale");
+		SerialMessage serialMessage;
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public SerialMessage executeRefresh(ZWaveNode node, ZWaveMeterCommandClass commandClass, int endpointId,
-            Map<String, String> arguments) {
-        String meterScale = arguments.get("meter_scale");
+		logger.debug("Generating poll message for {} for node {} endpoint {}", commandClass.getCommandClass().getLabel(), node.getNodeId(), endpointId);
+		
+		if (meterScale != null) {
+			serialMessage = node.encapsulate(commandClass.getMessage(MeterScale.getMeterScale(meterScale)), commandClass, endpointId);
+		} else {
+			serialMessage = node.encapsulate(commandClass.getValueMessage(), commandClass, endpointId);
+		}
+		
+		if (serialMessage == null) {
+			logger.warn("Generating message failed for command class = {}, node = {}, endpoint = {}", commandClass.getCommandClass().getLabel(), node.getNodeId(), endpointId);
+			return;
+		}
+		
+		this.getController().sendData(serialMessage);
+	}
 
-        logger.debug("NODE {}: Generating poll message for {}, endpoint {}", node.getNodeId(),
-                commandClass.getCommandClass().getLabel(), endpointId);
+	/**
+	 * {@inheritDoc}
+	 */
+	@Override
+	public void handleEvent(ZWaveCommandClassValueEvent event, Item item, Map<String,String> arguments) {
+		ZWaveStateConverter<?,?> converter = this.getStateConverter(item, event.getValue());
+		
+		if (converter == null) {
+			logger.warn("No converter found for item = {}, node = {} endpoint = {}, ignoring event.", item.getName(), event.getNodeId(), event.getEndpoint());
+			return;
+		}
+		
+		// we ignore any meter reports for item bindings configured with 'meter_reset=true' 
+		// since we don't want to be updating the 'reset' switch
+		if ("true".equalsIgnoreCase(arguments.get("meter_reset")))
+			return;
 
-        if (meterScale != null) {
-            return node.encapsulate(commandClass.getMessage(MeterScale.getMeterScale(meterScale)), commandClass,
-                    endpointId);
-        } else {
-            return node.encapsulate(commandClass.getValueMessage(), commandClass, endpointId);
-        }
-    }
+		String meterScale = arguments.get("meter_scale");
+		String meterZero = arguments.get("meter_zero");
+		ZWaveMeterValueEvent meterEvent = (ZWaveMeterValueEvent)event;
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void handleEvent(ZWaveCommandClassValueEvent event, Item item, Map<String, String> arguments) {
-        ZWaveStateConverter<?, ?> converter = this.getStateConverter(item, event.getValue());
+		// Don't trigger event if this item is bound to another sensor type
+		if (meterScale != null && MeterScale.getMeterScale(meterScale) != meterEvent.getMeterScale())
+			return;
 
-        if (converter == null) {
-            logger.warn("NODE {}: No converter found for item = {}, endpoint = {}, ignoring event.", event.getNodeId(),
-                    item.getName(), event.getEndpoint());
-            return;
-        }
+		Object val = event.getValue();
 
-        // we ignore any meter reports for item bindings configured with 'meter_reset=true'
-        // since we don't want to be updating the 'reset' switch
-        if ("true".equalsIgnoreCase(arguments.get("meter_reset"))) {
-            return;
-        }
+		// If we've set a zero, then anything below this value needs to be considered ZERO
+		if (meterZero != null) {
+			if(((BigDecimal)val).doubleValue() <= Double.parseDouble(meterZero))
+				val = BigDecimal.ZERO;
+		}
 
-        String meterScale = arguments.get("meter_scale");
-        String meterZero = arguments.get("meter_zero");
-        ZWaveMeterValueEvent meterEvent = (ZWaveMeterValueEvent) event;
+		State state = converter.convertFromValueToState(val);
+		this.getEventPublisher().postUpdate(item.getName(), state);
+	}
 
-        // Don't trigger event if this item is bound to another sensor type
-        if (meterScale != null && MeterScale.getMeterScale(meterScale) != meterEvent.getMeterScale()) {
-            return;
-        }
+	/**
+	 * {@inheritDoc}
+	 */
+	@Override
+	public void receiveCommand(Item item, Command command, ZWaveNode node,
+			ZWaveMeterCommandClass commandClass, int endpointId, Map<String,String> arguments) {
+		
+		// It's not an ON command from a button switch, do not reset
+		if (command != OnOffType.ON)
+			return;
+		
+		// send reset message
+		SerialMessage serialMessage = node.encapsulate(commandClass.getResetMessage(), commandClass, endpointId);
+		this.getController().sendData(serialMessage);
+		
+		// poll the device
+		for (SerialMessage serialGetMessage : commandClass.getDynamicValues()) {
+			this.getController().sendData(node.encapsulate(serialGetMessage, commandClass, endpointId));
+		}
+	}
 
-        Object val = event.getValue();
-
-        // If we've set a zero, then anything below this value needs to be considered ZERO
-        if (meterZero != null) {
-            if (((BigDecimal) val).doubleValue() <= Double.parseDouble(meterZero)) {
-                val = BigDecimal.ZERO;
-            }
-        }
-
-        State state = converter.convertFromValueToState(val);
-        this.getEventPublisher().postUpdate(item.getName(), state);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void receiveCommand(Item item, Command command, ZWaveNode node, ZWaveMeterCommandClass commandClass,
-            int endpointId, Map<String, String> arguments) {
-
-        // It's not an ON command from a button switch, do not reset
-        if (command != OnOffType.ON) {
-            return;
-        }
-
-        // get the reset message - will return null if not supported
-        SerialMessage serialMessage = node.encapsulate(commandClass.getResetMessage(), commandClass, endpointId);
-
-        if (serialMessage == null) {
-            logger.warn("NODE {}: Meter reset not supported for item = {}, endpoint = {}, ignoring event.",
-                    node.getNodeId(), item.getName(), endpointId);
-            return;
-        }
-
-        // send reset message
-        this.getController().sendData(serialMessage);
-
-        // poll the device
-        for (SerialMessage serialGetMessage : commandClass.getDynamicValues(true)) {
-            this.getController().sendData(node.encapsulate(serialGetMessage, commandClass, endpointId));
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    int getRefreshInterval() {
-        return REFRESH_INTERVAL;
-    }
+	/**
+	 * {@inheritDoc}
+	 */
+	@Override
+	int getRefreshInterval() {
+		return REFRESH_INTERVAL;
+	}
 }

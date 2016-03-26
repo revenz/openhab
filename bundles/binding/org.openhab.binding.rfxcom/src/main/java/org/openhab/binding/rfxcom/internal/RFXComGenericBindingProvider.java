@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2016, openHAB.org and others.
+ * Copyright (c) 2010-2015, openHAB.org and others.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -24,7 +24,7 @@ import org.openhab.model.item.binding.BindingConfigParseException;
  * This class can parse information from the generic binding format and provides
  * RFXCOM device binding information from it.
  * </p>
- *
+ * 
  * <p>
  * The syntax of the binding configuration strings accepted is the following:
  * <p>
@@ -37,7 +37,7 @@ import org.openhab.model.item.binding.BindingConfigParseException;
  * <p>
  * <p>
  * Examples for valid binding configuration strings:
- *
+ * 
  * <ul>
  * <li><code>rfxcom="<2264:Temperature"</code></li>
  * <li><code>rfxcom="<2264:Humidity"</code></li>
@@ -45,159 +45,155 @@ import org.openhab.model.item.binding.BindingConfigParseException;
  * <li><code>rfxcom="<635602.2:Command"</code></li>
  * <li><code>rfxcom">635602.1:LIGHTING2.AC:Command"</code></li>
  * </ul>
- *
- *
+ * 
+ * 
  * @author Pauli Anttila
  * @since 1.2.0
  */
-public class RFXComGenericBindingProvider extends AbstractGenericBindingProvider implements RFXComBindingProvider {
+public class RFXComGenericBindingProvider extends
+		AbstractGenericBindingProvider implements RFXComBindingProvider {
+	
+	/**
+	 * {@inheritDoc}
+	 */
+	public String getBindingType() {
+		return "rfxcom";
+	}
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public String getBindingType() {
-        return "rfxcom";
-    }
+	/**
+	 * @{inheritDoc}
+	 */
+	@Override
+	public void validateItemType(Item item, String bindingConfig)
+			throws BindingConfigParseException {
+	}
 
-    /**
-     * @{inheritDoc}
-     */
-    @Override
-    public void validateItemType(Item item, String bindingConfig) throws BindingConfigParseException {
-    }
+	/**
+	 * {@inheritDoc}
+	 */
+	@Override
+	public void processBindingConfiguration(String context, Item item,
+			String bindingConfig) throws BindingConfigParseException {
+		super.processBindingConfiguration(context, item, bindingConfig);
+		RFXComBindingConfig config = new RFXComBindingConfig();
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void processBindingConfiguration(String context, Item item, String bindingConfig)
-            throws BindingConfigParseException {
-        super.processBindingConfiguration(context, item, bindingConfig);
-        RFXComBindingConfig config = new RFXComBindingConfig();
+		String valueSelectorString = null;
+		
+		if (bindingConfig.startsWith("<")) {
 
-        String valueSelectorString = null;
+			String[] configParts = bindingConfig.trim().split(":");
 
-        if (bindingConfig.startsWith("<")) {
+			if (configParts.length != 2) {
+				throw new BindingConfigParseException(
+						"RFXCOM binding must contain two parts separated by ':'");
+			}
 
-            String[] configParts = bindingConfig.trim().split(":");
+			config.id = configParts[0].trim().replace("<", "");
+			config.inBinding = true;
+			
+			valueSelectorString = configParts[1].trim();
+			
+		} else if (bindingConfig.startsWith(">")) {
+			String[] configParts = bindingConfig.trim().split(":");
 
-            if (configParts.length != 2) {
-                throw new BindingConfigParseException("RFXCOM binding must contain two parts separated by ':'");
-            }
+			config.id = configParts[0].trim().replace(">", "");
+			config.inBinding = false;
+			
+			String[] types = configParts[1].trim().split("\\.");
 
-            config.id = configParts[0].trim().replace("<", "");
-            config.inBinding = true;
+			if (types.length != 2) {
+				throw new BindingConfigParseException(
+						"RFXCOM out binding second field should contain 2 parts separated by '.'");
+			}
 
-            valueSelectorString = configParts[1].trim();
+			try {
+				config.packetType = RFXComMessageFactory.convertPacketType(types[0]
+						.trim());
+			} catch (IllegalArgumentException e) {
+				throw new BindingConfigParseException("Invalid packet type '"
+						+ types[0] + "'!");
+			}
 
-        } else if (bindingConfig.startsWith(">")) {
-            String[] configParts = bindingConfig.trim().split(":");
+			try {
+				config.subType = RFXComMessageFactory.getMessageInterface(
+						config.packetType).convertSubType(types[1].trim());
 
-            config.id = configParts[0].trim().replace(">", "");
-            config.inBinding = false;
+			} catch (Exception e) {
+				throw new BindingConfigParseException("Invalid sub type '"
+						+ types[1] + "' in type '" + config.packetType + "'!");
+			}
 
-            String[] types = configParts[1].trim().split("\\.");
+			valueSelectorString = configParts[2].trim();
 
-            if (types.length != 2) {
-                throw new BindingConfigParseException(
-                        "RFXCOM out binding second field should contain 2 parts separated by '.'");
-            }
+		} else {
+			throw new BindingConfigParseException(
+					"RFXCOM binding should start < or > character!");
+		}
+		
+		try {
 
-            try {
-                config.packetType = RFXComMessageFactory.convertPacketType(types[0].trim());
-            } catch (IllegalArgumentException e) {
-                throw new BindingConfigParseException("Invalid packet type '" + types[0] + "'!");
-            }
+			RFXComValueSelector.validateBinding(valueSelectorString,
+					item.getClass());
 
-            try {
-                config.subType = RFXComMessageFactory.getMessageInterface(config.packetType)
-                        .convertSubType(types[1].trim());
+			config.valueSelector = RFXComValueSelector
+					.getValueSelector(valueSelectorString);
 
-            } catch (Exception e) {
-                throw new BindingConfigParseException(
-                        "Invalid sub type '" + types[1] + "' in type '" + config.packetType + "'!");
-            }
+		} catch (IllegalArgumentException e1) {
+			throw new BindingConfigParseException(
+					"Invalid value selector '" + valueSelectorString + "'!");
 
-            valueSelectorString = configParts[2].trim();
+		} catch (InvalidClassException e1) {
+			throw new BindingConfigParseException(
+					"Invalid item type for value selector '"
+							+ valueSelectorString + "'!");
 
-        } else {
-            throw new BindingConfigParseException("RFXCOM binding should start < or > character!");
-        }
+		}
 
-        try {
+		addBindingConfig(item, config);
+	}
 
-            RFXComValueSelector.validateBinding(valueSelectorString, item.getClass());
+	class RFXComBindingConfig implements BindingConfig {
+		String id;
+		RFXComValueSelector valueSelector;
+		boolean inBinding;
+		PacketType packetType;
+		Object subType;
 
-            config.valueSelector = RFXComValueSelector.getValueSelector(valueSelectorString);
+	}
 
-        } catch (IllegalArgumentException e1) {
-            throw new BindingConfigParseException("Invalid value selector '" + valueSelectorString + "'!");
+	@Override
+	public String getId(String itemName) {
+		RFXComBindingConfig config = (RFXComBindingConfig) bindingConfigs
+				.get(itemName);
+		return config != null ? config.id : null;
+	}
 
-        } catch (InvalidClassException e1) {
-            throw new BindingConfigParseException(
-                    "Invalid item type for value selector '" + valueSelectorString + "'!");
+	@Override
+	public RFXComValueSelector getValueSelector(String itemName) {
+		RFXComBindingConfig config = (RFXComBindingConfig) bindingConfigs
+				.get(itemName);
+		return config != null ? config.valueSelector : null;
+	}
 
-        }
+	@Override
+	public boolean isInBinding(String itemName) {
+		RFXComBindingConfig config = (RFXComBindingConfig) bindingConfigs
+				.get(itemName);
+		return config != null ? config.inBinding : null;
+	}
 
-        addBindingConfig(item, config);
-    }
+	@Override
+	public PacketType getPacketType(String itemName) {
+		RFXComBindingConfig config = (RFXComBindingConfig) bindingConfigs
+				.get(itemName);
+		return config != null ? config.packetType : null;
+	}
 
-    static class RFXComBindingConfig implements BindingConfig {
-        String id;
-        RFXComValueSelector valueSelector;
-        boolean inBinding;
-        PacketType packetType;
-        Object subType;
-    }
+	@Override
+	public Object getSubType(String itemName) {
+		RFXComBindingConfig config = (RFXComBindingConfig) bindingConfigs
+				.get(itemName);
+		return config != null ? config.subType : null;
+	}
 
-    @Override
-    public String getId(String itemName) {
-        RFXComBindingConfig config = getBindingConfig(itemName);
-        return config != null ? config.id : null;
-    }
-
-    @Override
-    public RFXComValueSelector getValueSelector(String itemName) {
-        RFXComBindingConfig config = getBindingConfig(itemName);
-        return config != null ? config.valueSelector : null;
-    }
-
-    private RFXComBindingConfig getBindingConfig(String itemName) {
-        return (RFXComBindingConfig) bindingConfigs.get(itemName);
-    }
-
-    @Override
-    public boolean isInBinding(String itemName) {
-        RFXComBindingConfig config = getBindingConfig(itemName);
-        return config != null ? config.inBinding : null; // null as boolean?
-    }
-
-    @Override
-    public PacketType getPacketType(String itemName) {
-        RFXComBindingConfig config = getBindingConfig(itemName);
-        return config != null ? config.packetType : null;
-    }
-
-    @Override
-    public Object getSubType(String itemName) {
-        RFXComBindingConfig config = getBindingConfig(itemName);
-        return config != null ? config.subType : null;
-    }
-
-    @Override
-    public Boolean autoUpdate(final String itemName) {
-        if (!providesBindingFor(itemName)) {
-            return null;
-        }
-
-        RFXComBindingConfig bindingConfig = getBindingConfig(itemName);
-        if (bindingConfig == null) {
-            return null;
-        }
-        if (bindingConfig.inBinding) {
-            return true;
-        }
-        return false;
-    }
 }

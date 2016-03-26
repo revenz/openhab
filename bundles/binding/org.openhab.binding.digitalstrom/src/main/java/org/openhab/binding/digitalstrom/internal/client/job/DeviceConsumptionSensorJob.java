@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2016, openHAB.org and others.
+ * Copyright (c) 2010-2015, openHAB.org and others.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -22,51 +22,49 @@ import org.slf4j.LoggerFactory;
  */
 public class DeviceConsumptionSensorJob implements SensorJob {
 
-    private static final Logger logger = LoggerFactory.getLogger(DeviceConsumptionSensorJob.class);
-    private Device device = null;
-    private SensorIndexEnum sensorIndex = null;
+	private static final Logger logger = LoggerFactory
+			.getLogger(DeviceConsumptionSensorJob.class);
+	private Device device = null;
+	private SensorIndexEnum sensorIndex = null;
+	
+	public DeviceConsumptionSensorJob(Device device, SensorIndexEnum index) {
+		this.device = device;
+		this.sensorIndex = index;
+	}
+	
+	/* (non-Javadoc)
+	 * @see org.openhab.binding.digitalSTROM2.internal.client.job.SensorJob#execute(org.openhab.binding.digitalSTROM2.internal.client.DigitalSTROMAPI, java.lang.String)
+	 */
+	@Override
+	public void execute(DigitalSTROMAPI digitalSTROM, String token) {
+		int consumption = digitalSTROM.getDeviceSensorValue(token, this.device.getDSID(), null, this.sensorIndex);
+		logger.info("DeviceConsumption : "+consumption+", DSID: "+this.device.getDSID().getValue());
 
-    public DeviceConsumptionSensorJob(Device device, SensorIndexEnum index) {
-        this.device = device;
-        this.sensorIndex = index;
-    }
+		switch (this.sensorIndex) {
+	
+			case ACTIVE_POWER:
+							this.device.setPowerConsumption(consumption);
+							break;
+			case OUTPUT_CURRENT:
+							this.device.setElectricMeterValue(consumption);
+							break;
+			default:
+				break;
+		}
+	}
 
-    /*
-     * (non-Javadoc)
-     * 
-     * @see org.openhab.binding.digitalSTROM2.internal.client.job.SensorJob#execute(org.openhab.binding.digitalSTROM2.
-     * internal.client.DigitalSTROMAPI, java.lang.String)
-     */
-    @Override
-    public void execute(DigitalSTROMAPI digitalSTROM, String token) {
-        int consumption = digitalSTROM.getDeviceSensorValue(token, this.device.getDSID(), null, this.sensorIndex);
-        logger.info("DeviceConsumption : " + consumption + ", DSID: " + this.device.getDSID().getValue());
+	@Override
+	public boolean equals(Object obj) {
+		if (obj instanceof DeviceConsumptionSensorJob) {
+			DeviceConsumptionSensorJob other = (DeviceConsumptionSensorJob) obj;
+			String device = this.device.getDSID().getValue()+this.sensorIndex.getIndex();
+			return device.equals(other.device.getDSID().getValue()+other.sensorIndex.getIndex());
+		}
+		return false;
+	}
 
-        switch (this.sensorIndex) {
-
-            case ACTIVE_POWER:
-                this.device.setPowerConsumption(consumption);
-                break;
-            case OUTPUT_CURRENT:
-                this.device.setElectricMeterValue(consumption);
-                break;
-            default:
-                break;
-        }
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj instanceof DeviceConsumptionSensorJob) {
-            DeviceConsumptionSensorJob other = (DeviceConsumptionSensorJob) obj;
-            String device = this.device.getDSID().getValue() + this.sensorIndex.getIndex();
-            return device.equals(other.device.getDSID().getValue() + other.sensorIndex.getIndex());
-        }
-        return false;
-    }
-
-    @Override
-    public DSID getDsid() {
-        return device.getDSID();
-    }
+	@Override
+	public DSID getDsid() {
+		return device.getDSID();
+	}
 }

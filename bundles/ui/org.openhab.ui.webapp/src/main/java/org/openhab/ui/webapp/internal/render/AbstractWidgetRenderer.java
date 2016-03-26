@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2016, openHAB.org and others.
+ * Copyright (c) 2010-2015, openHAB.org and others.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -51,9 +51,7 @@ abstract public class AbstractWidgetRenderer implements WidgetRenderer {
 	protected static final String SNIPPET_LOCATION = "snippets/";
 
 	/* a local cache so we do not have to read the snippets over and over again from the bundle */
-	protected static final Map<String, String> snippetCache = new HashMap<String, String>();
-	
-	protected boolean useSnippetCache = true;
+	protected static final Map<String, String> snippetCache = new HashMap<String, String>(); 
 
 	public void setItemUIRegistry(ItemUIRegistry itemUIRegistry) {
 		this.itemUIRegistry = itemUIRegistry;
@@ -68,7 +66,6 @@ abstract public class AbstractWidgetRenderer implements WidgetRenderer {
 	}
 
 	protected void activate(ComponentContext context) {
-		useSnippetCache = !Boolean.valueOf(System.getProperty("disableHtmlCache", "false"));
 	}
 
 	protected void deactivate(ComponentContext context) {
@@ -90,9 +87,7 @@ abstract public class AbstractWidgetRenderer implements WidgetRenderer {
 			if(entry!=null) {
 				try {
 					snippet = IOUtils.toString(entry.openStream());
-					if (useSnippetCache) {
-						snippetCache.put(elementType, snippet);	
-					}
+					snippetCache.put(elementType, snippet);
 				} catch (IOException e) {
 					logger.warn("Cannot load snippet for element type '{}'", elementType, e);
 				}

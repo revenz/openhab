@@ -17,21 +17,40 @@ public class imperiHabBindingConfig implements BindingConfig {
 	String persist;
 	String wattsId; // used to include power readings on devices
 	String accumulationId; // used for the rain sensor
+	String curmodeId;
+	String currentTempId;
+	String login;
+	String password;
+	String localjpegurl;
+	String localmjpegurl;
+	String remotejpegurl;
+	String remotemjpegurl;
+	String proxyjpegurl;
+	String hygroId;
+	float step;
+	boolean stopable;
+	boolean pulseable;
+	float minVal;
+	float maxVal;
+	String[] availableModes;
 	boolean invert;
 	ArrayList<String> parameters = new ArrayList<String>();		
 	ArrayList<imperiHabBindingConfigChildItem> childItems = new ArrayList<imperiHabBindingConfigChildItem>();
-	
-	
+		
 	boolean isTripped = false;
 	Date lastTripped;
 	
 	imperiHabBindingConfig(){
 		
 	}
-	
+
 	String getDeviceString(){
-		return "{\"id\":\"" + this.name + "\",\"name\":\"" + (this.label != null ? this.label : this.name.replace("_", " ")) + "\",\"type\":\"" + 
-				this.type + "\",\"room\":\"" + this.room + "\",\"params\":[" + imperiHabUtils.join(this.parameters, ",") + "]}";
+		synchronized (this.parameters) {
+			return "{\"id\":\"" + this.name + "\",\"name\":\"" + (this.label != null ? this.label : this.name.replace("_", " ")) + "\",\"type\":\"" + 
+					this.type + "\",\"room\":\"" + this.room + "\",\"params\":[\n\t\t" + 
+					imperiHabUtils.join(this.parameters, ",\n\t\t") + 
+					"\n\t]}";
+		}	
     }
 	
 	String generateParameters(){
@@ -44,6 +63,8 @@ public class imperiHabBindingConfig implements BindingConfig {
 			return "";
 		String result = "{";
 		for(Object[] v : values){
+			if(v[1] == null)
+				continue;
 			result += "\"" + v[0] +"\":" + (v[1] instanceof String ? "\"" + v[1] + "\"" : v[1].toString()) + ",";
 		}
 		return result.substring(0, result.length() - 1) + "}";

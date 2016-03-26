@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2016, openHAB.org and others.
+ * Copyright (c) 2010-2015, openHAB.org and others.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -27,6 +27,8 @@ import org.openhab.binding.withings.internal.model.MeasureType;
 import org.openhab.core.binding.AbstractActiveBinding;
 import org.openhab.core.binding.BindingProvider;
 import org.openhab.core.library.types.DecimalType;
+import org.openhab.core.types.Command;
+import org.openhab.core.types.State;
 import org.osgi.service.cm.ConfigurationException;
 import org.osgi.service.cm.ManagedService;
 import org.slf4j.Logger;
@@ -36,175 +38,186 @@ import org.slf4j.LoggerFactory;
  * {@link WithingsBinding} polls the Withings API in a defined
  * {@link WithingsBinding#refreshInterval} and updates all items with a
  * {@link WithingsBindingConfig}.
- *
+ * 
  * @author Dennis Nobel
  * @since 1.5.0
  */
-public class WithingsBinding extends AbstractActiveBinding<WithingsBindingProvider>implements ManagedService {
+public class WithingsBinding extends
+		AbstractActiveBinding<WithingsBindingProvider> implements
+		ManagedService {
 
-    private static final Logger logger = LoggerFactory.getLogger(WithingsBinding.class);
+	private static final Logger logger = LoggerFactory
+			.getLogger(WithingsBinding.class);
 
-    /**
-     * Holds the time of last update.
-     */
-    private int lastUpdate = 0;
+	/**
+	 * Holds the time of last update.
+	 */
+	private int lastUpdate = 0;
 
-    /**
-     * The refresh interval which is used to poll values from the Withings
-     * server (optional, defaults to 3600000 ms)
-     */
-    private long refreshInterval = 3600000;
+	/**
+	 * The refresh interval which is used to poll values from the Withings
+	 * server (optional, defaults to 3600000 ms)
+	 */
+	private long refreshInterval = 3600000;
 
-    private final List<WithingsApiClient> withingsApiClients = new CopyOnWriteArrayList<WithingsApiClient>();
+	private final List<WithingsApiClient> withingsApiClients = new CopyOnWriteArrayList<WithingsApiClient>();
 
-    @Override
-    protected String getName() {
-        return "Withings Refresh Service";
-    }
+	@Override
+	public void allBindingsChanged(BindingProvider provider) {
+		super.allBindingsChanged(provider);
+		if (isProperlyConfigured()) {
+			execute();
+		}
+	}
 
-    @Override
-    protected long getRefreshInterval() {
-        return refreshInterval;
-    }
+	@Override
+	public void updated(Dictionary<String, ?> config)
+			throws ConfigurationException {
+		if (config != null) {
+			String refreshInterval = (String) config.get("refresh");
+			if (StringUtils.isNotBlank(refreshInterval)) {
+				this.refreshInterval = Long.parseLong(refreshInterval);
+				if (isProperlyConfigured() && activeService.isRunning()) {
+					activeService.shutdown();
+					activeService.interrupt();
+					try {
+						// wait 5 seconds until polling thread is definitely
+						// shutdown
+						Thread.sleep(5000);
+					} catch (InterruptedException unhandled) {
+					}
+					setProperlyConfigured(isProperlyConfigured());
+				}
+			}
+		}
+	}
 
-    @Override
-    public void allBindingsChanged(BindingProvider provider) {
-        super.allBindingsChanged(provider);
-        if (isProperlyConfigured()) {
-            execute();
-        }
-    }
+	protected void addWithingsApiClient(WithingsApiClient withingsApiClient) {
+		this.withingsApiClients.add(withingsApiClient);
+		if (!isProperlyConfigured()) {
+			setProperlyConfigured(true);
+		}
+	}
 
-    @Override
-    protected synchronized void execute() {
-        Map<String, WithingsBindingConfig> withingsBindings = getWithingsBindings();
+	@Override
+	protected synchronized void execute() {
 
-        if (withingsBindings.isEmpty()) {
-            logger.info("No item -> withings binding found. Skipping data refresh.");
-            return;
-        }
+		Map<String, WithingsBindingConfig> withingsBindings = getWithingsBindings();
 
-        if (this.withingsApiClients.isEmpty()) {
-            logger.info(
-                    "No withings client found. Withings binding is probably not authenticated. Skipping data refresh.");
-            return;
-        }
+		if (withingsBindings.isEmpty()) {
+			logger.info("No item -> withings binding found. Skipping data refresh.");
+			return;
+		}
 
-        updateItemStates(withingsBindings);
-    }
+		if (this.withingsApiClients.isEmpty()) {
+			logger.info("No withings client found. Withings binding is probably not authenticated. Skipping data refresh.");
+			return;
+		}
 
-    private Float findLastMeasureValue(List<MeasureGroup> measures, MeasureType measureType) {
-        for (MeasureGroup measureGroup : measures) {
-            if (measureGroup.category == Category.MEASURE) {
-                for (Measure measure : measureGroup.measures) {
-                    if (measure.type == measureType) {
-                        return measure.getActualValue();
-                    }
-                }
-            }
-        }
-        return null;
-    }
+		updateItemStates(withingsBindings);
+	}
 
-    private Map<String, WithingsBindingConfig> getWithingsBindings() {
-        Map<String, WithingsBindingConfig> bindings = new HashMap<String, WithingsBindingConfig>();
+	@Override
+	protected String getName() {
+		return "Withings Refresh Service";
+	}
 
-        for (WithingsBindingProvider provider : this.providers) {
-            Collection<String> itemNames = provider.getItemNames();
-            for (String itemName : itemNames) {
-                WithingsBindingConfig config = provider.getItemConfig(itemName);
-                bindings.put(itemName, config);
-            }
-        }
+	@Override
+	protected long getRefreshInterval() {
+		return refreshInterval;
+	}
 
-        return bindings;
-    }
+	@Override
+	protected void internalReceiveCommand(String itemName, Command command) {
+		logger.warn("Withings binding does not support commands");
+	}
 
-    private int now() {
-        return (int) (System.currentTimeMillis() / 1000);
-    }
+	@Override
+	protected void internalReceiveUpdate(String itemName, State newState) {
+		// nothing to do
+	}
 
-    private void updateItemState(String itemName, WithingsBindingConfig withingsBindingConfig,
-            List<MeasureGroup> measures) {
+	protected void removeWithingsApiClient(WithingsApiClient withingsApiClient) {
+		this.withingsApiClients.remove(withingsApiClient);
+		if (withingsApiClients.isEmpty()) {
+			setProperlyConfigured(false);
+		}
+	}
 
-        MeasureType measureType = withingsBindingConfig.measureType;
+	private Float findLastMeasureValue(List<MeasureGroup> measures,
+			MeasureType measureType) {
+		for (MeasureGroup measureGroup : measures) {
+			if (measureGroup.category == Category.MEASURE) {
+				for (Measure measure : measureGroup.measures) {
+					if (measure.type == measureType) {
+						return measure.getActualValue();
+					}
+				}
+			}
+		}
+		return null;
+	}
 
-        Float lastMeasureValue = findLastMeasureValue(measures, measureType);
+	private Map<String, WithingsBindingConfig> getWithingsBindings() {
+		Map<String, WithingsBindingConfig> bindings = new HashMap<String, WithingsBindingConfig>();
 
-        if (lastMeasureValue != null) {
-            eventPublisher.postUpdate(itemName, new DecimalType(lastMeasureValue));
-        }
-    }
+		for (WithingsBindingProvider provider : this.providers) {
+			Collection<String> itemNames = provider.getItemNames();
+			for (String itemName : itemNames) {
+				WithingsBindingConfig config = provider.getItemConfig(itemName);
+				bindings.put(itemName, config);
+			}
+		}
 
-    private void updateItemStates(Map<String, WithingsBindingConfig> withingsBindings) {
-        try {
+		return bindings;
+	}
 
-            WithingsApiClient client = this.withingsApiClients.get(0);
-            List<MeasureGroup> measures = client.getMeasures(lastUpdate);
+	private int now() {
+		return (int) (System.currentTimeMillis() / 1000);
+	}
 
-            if (measures == null || measures.isEmpty()) {
-                logger.info("No new measures found since the last update.");
-                return;
-            }
+	private void updateItemState(String itemName,
+			WithingsBindingConfig withingsBindingConfig,
+			List<MeasureGroup> measures) {
 
-            for (Entry<String, WithingsBindingConfig> withingBinding : withingsBindings.entrySet()) {
-                WithingsBindingConfig withingsBindingConfig = withingBinding.getValue();
-                String itemName = withingBinding.getKey();
-                updateItemState(itemName, withingsBindingConfig, measures);
-            }
+		MeasureType measureType = withingsBindingConfig.measureType;
 
-            lastUpdate = now();
+		Float lastMeasureValue = findLastMeasureValue(measures, measureType);
 
-        } catch (Exception ex) {
-            logger.error("Cannot get Withings measure data: " + ex.getMessage(), ex);
-        }
-    }
+		if (lastMeasureValue != null) {
+			eventPublisher.postUpdate(itemName, new DecimalType(
+					lastMeasureValue));
+		}
+	}
 
-    protected void addWithingsApiClient(WithingsApiClient withingsApiClient) {
-        this.withingsApiClients.add(withingsApiClient);
-        if (!isProperlyConfigured()) {
-            setProperlyConfigured(true);
-        }
-    }
+	private void updateItemStates(
+			Map<String, WithingsBindingConfig> withingsBindings) {
+		try {
 
-    protected void removeWithingsApiClient(WithingsApiClient withingsApiClient) {
-        this.withingsApiClients.remove(withingsApiClient);
-        if (withingsApiClients.isEmpty()) {
-            setProperlyConfigured(false);
-        }
-    }
+			WithingsApiClient client = this.withingsApiClients.get(0);
+			List<MeasureGroup> measures = client.getMeasures(lastUpdate);
 
-    protected void addBindingProvider(WithingsBindingProvider bindingProvider) {
-        super.addBindingProvider(bindingProvider);
-    }
+			if (measures == null || measures.isEmpty()) {
+				logger.info("No new measures found since the last update.");
+				return;
+			}
 
-    protected void removeBindingProvider(WithingsBindingProvider bindingProvider) {
-        super.removeBindingProvider(bindingProvider);
-    }
+			for (Entry<String, WithingsBindingConfig> withingBinding : withingsBindings
+					.entrySet()) {
 
-    @Override
-    public void updated(Dictionary<String, ?> config) throws ConfigurationException {
-        if (config != null) {
-            String refreshInterval = (String) config.get("refresh");
-            if (StringUtils.isNotBlank(refreshInterval)) {
-                this.refreshInterval = Long.parseLong(refreshInterval);
-                restartPollingThread();
-            }
-        }
-    }
+				WithingsBindingConfig withingsBindingConfig = withingBinding
+						.getValue();
+				String itemName = withingBinding.getKey();
 
-    private void restartPollingThread() {
-        if (isProperlyConfigured() && activeService.isRunning()) {
-            activeService.shutdown();
-            activeService.interrupt();
-            try {
-                // wait 5 seconds until polling thread is definitely
-                // shutdown
-                Thread.sleep(5000);
-            } catch (InterruptedException unhandled) {
-            }
-            setProperlyConfigured(isProperlyConfigured());
-        }
-    }
+				updateItemState(itemName, withingsBindingConfig, measures);
+			}
+
+			lastUpdate = now();
+
+		} catch (Exception ex) {
+			logger.error(
+					"Cannot get Withings measure data: " + ex.getMessage(), ex);
+		}
+	}
 
 }

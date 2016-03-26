@@ -16,6 +16,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 
+
+
+import org.apache.commons.lang.StringUtils;
 import org.openhab.binding.imperihab.imperiHabBindingProvider;
 import org.openhab.core.binding.BindingConfig;
 import org.openhab.core.items.Item;
@@ -41,7 +44,12 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
 
 	/** The Constant logger. */
 	static final Logger logger = LoggerFactory.getLogger(imperiHabGenericBindingProvider.class);
-	static final Pattern rgxBindingConfig = Pattern.compile("\\G(\\w+)[\\s]*[=:][\\s]*([^;,:]+)[\\s]*[,;]?");
+	static final Pattern rgxBindingConfig = Pattern.compile("\\G(\\w+)[\\s]*[=:][\\s]*(('[^']+')|([^;,:]+))[\\s]*[,;]?");
+	
+	static HashMap<String, String> ItemLookups = new HashMap<String, String>();
+	
+
+	static String DEFAULT_TEMPERATURE_UNIT = "C";
 	
 	void log(String message){
 		logger.debug("imperiHabGenericBindingProvider: " + message);
@@ -84,6 +92,8 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
 		while (matcher.find()) {
 			String key = matcher.group(1).trim();
 			String value = matcher.group(2).trim();
+			if(value.startsWith("'") && value.endsWith("'"))
+				value = value.substring(1, value.length() - 1);
 		   
 			if(key.equalsIgnoreCase("unit"))
 				config.unit = value;
@@ -97,15 +107,63 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
    				config.persist = value;
 			else if(key.equalsIgnoreCase("watts"))
    				config.wattsId = value;
+			else if(key.equalsIgnoreCase("hygroId")){
+				config.hygroId = value;
+				config.type = DeviceTypes.TYPE_TEMP_HYGRO;
+			}
 			else if(key.equalsIgnoreCase("accumulation"))
 				config.accumulationId = value;
 			else if(key.equalsIgnoreCase("invert"))
 				config.invert = value.equals("1") || value.equalsIgnoreCase("true") || value.equalsIgnoreCase("on");
-		   
+			else if(key.equalsIgnoreCase("curmodeid") ||key.equalsIgnoreCase("currentmodeid")){
+				config.curmodeId = value;
+				ItemLookups.put(item.getName(), value);
+			}
+			else if(key.equalsIgnoreCase("curTempId") ||key.equalsIgnoreCase("currentTempId"))
+				config.currentTempId = value;
+			else if(key.equalsIgnoreCase("step"))
+				config.step = tryParseFloat(value);
+			else if(key.equalsIgnoreCase("stopable"))
+				config.stopable = tryParseBoolean(value);
+			else if(key.equalsIgnoreCase("pulseable"))
+				config.pulseable = tryParseBoolean(value);
+			else if(key.equalsIgnoreCase("minval"))
+				config.minVal = tryParseFloat(value);
+			else if(key.equalsIgnoreCase("maxval"))
+				config.maxVal = tryParseFloat(value);
+			else if(key.equalsIgnoreCase("availableModes"))
+				config.availableModes = value.split("-");
+			else if(key.equalsIgnoreCase("login") || key.equalsIgnoreCase("user"))
+				config.login = value;
+			else if(key.equalsIgnoreCase("password"))
+				config.password = value;
+			else if(key.equalsIgnoreCase("localjpegurl") || key.equalsIgnoreCase("localjpgurl") || key.equalsIgnoreCase("localjpeguri") || key.equalsIgnoreCase("localjpguri")){
+				config.localjpegurl = value;
+				config.type = DeviceTypes.TYPE_CAMERA;
+			}
+			else if(key.equalsIgnoreCase("localmjpegurl") || key.equalsIgnoreCase("localmjpgurl") || key.equalsIgnoreCase("localmjpeguri") || key.equalsIgnoreCase("localmjpguri")){
+				config.localmjpegurl = value;
+				config.type = DeviceTypes.TYPE_CAMERA;
+			}
+			else if(key.equalsIgnoreCase("remotejpegurl") || key.equalsIgnoreCase("remotejpgurl") || key.equalsIgnoreCase("remotejpeguri") || key.equalsIgnoreCase("remotejpguri")){
+				config.remotejpegurl = value;
+				config.type = DeviceTypes.TYPE_CAMERA;
+			}
+			else if(key.equalsIgnoreCase("remotemjpegurl") || key.equalsIgnoreCase("remotemjpgurl") || key.equalsIgnoreCase("remotemjpeguri") || key.equalsIgnoreCase("remotemjpguri")){
+				config.remotemjpegurl = value;
+				config.type = DeviceTypes.TYPE_CAMERA;
+			}
+			else if(key.equalsIgnoreCase("proxyjpegurl") || key.equalsIgnoreCase("proxyjpgurl") || key.equalsIgnoreCase("proxyjpeguri") || key.equalsIgnoreCase("proxyjpguri")){
+				config.proxyjpegurl = value;
+				config.type = DeviceTypes.TYPE_CAMERA;
+				ItemLookups.put(item.getName(), value);
+			}
+			
+			
 			lastMatchPos = matcher.end();
 		}
 		config.name = item.getName();
-		if (lastMatchPos == bindingConfig.length()) // only add it if was parsed
+		if (lastMatchPos == bindingConfig.length()) // only add if it was parsed
 			addBindingConfig(item, config);		
 	}
 	
@@ -119,12 +177,16 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
 		return rooms;
 	}
 	
-	public ArrayList<String> getDevices(HashMap<String, Item> items){
+	public ArrayList<String> getDevices(String hostUrl, HashMap<String, Item> items){
+		if(hostUrl.endsWith("/") == false)
+			hostUrl += "/";
 		ArrayList<String> devices = new ArrayList<String>(); 
 		for(BindingConfig bc : this.bindingConfigs.values()){
 			imperiHabBindingConfig ihbc = (imperiHabBindingConfig) bc;
-			if(!items.containsKey(ihbc.name))
+			if(!items.containsKey(ihbc.name)){
+				logger.debug("imperiHabGenericBindingProvider: unable to find: " + ihbc.name);				
 				continue;
+			}
 			
 			Item item = items.get(ihbc.name);			
 			String lowerName = ihbc.name.toLowerCase();
@@ -134,8 +196,12 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
 			if(commandTypes == null) commandTypes = new ArrayList<Class<? extends Command>>();
 
 			if(ihbc.type == null){
-				if(commandTypes.contains(PercentType.class))
-	    			ihbc.type = DeviceTypes.TYPE_DIMMER;
+				if(ihbc.availableModes != null && ihbc.availableModes.length > 0 && StringUtils.isNotBlank(ihbc.curmodeId)){
+					logger.debug("imperiHabGenericBindingProvider: TYPE_THERMOSTAT FOUND! " + ihbc.name);
+					ihbc.type = DeviceTypes.TYPE_THERMOSTAT;
+				}
+				else if(commandTypes.contains(PercentType.class))
+					ihbc.type = DeviceTypes.TYPE_DIMMER;
 	    		else if(commandTypes.contains(OnOffType.class))
 	    			ihbc.type = DeviceTypes.TYPE_SWITCH;
 	    		else if(commandTypes.contains(ContactItem.class))
@@ -158,9 +224,103 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
 				else
 					ihbc.type = DeviceTypes.TYPE_GENERIC;
 			}
+
 			
-			
-			if(ihbc.type.equals(DeviceTypes.TYPE_DIMMER)){
+			if(ihbc.type.equals(DeviceTypes.TYPE_THERMOSTAT)){
+				Item curmode = items.get(ihbc.curmodeId);
+				String curModeValue = null;
+				if(curmode != null)
+					curModeValue = String.valueOf(curmode.getState());
+				if(StringUtils.isBlank(curModeValue) || curModeValue == "Uninitialized")
+					curModeValue = ihbc.availableModes[0];
+				
+				Item currentTempItem = items.get(ihbc.currentTempId);
+				if(currentTempItem != null){				
+					String value = item.getState().toString();
+	    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+    					new Object[]{"key", "curmode"},
+    					new Object[]{"value",curModeValue}
+    				));
+	    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+    					new Object[]{"key", "curtemp"},
+    					new Object[]{"value",String.valueOf(currentTempItem.getState())}
+    				));
+	    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+    					new Object[]{"key", "cursetpoint"},
+    					new Object[]{"value",String.valueOf(getStateAsDouble(value))}
+    				));
+	    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+    					new Object[]{"key", "step"},
+    					new Object[]{"value",ihbc.step == 0 ? 0.5f : ihbc.step}
+    				));
+	    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+    					new Object[]{"key", "minVal"},
+    					new Object[]{"value",ihbc.minVal}
+    				));
+	    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+    					new Object[]{"key", "maxVal"},
+    					new Object[]{"value",ihbc.maxVal}
+    				));
+	    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+    					new Object[]{"key", "availablemodes"},
+    					new Object[]{"value",StringUtils.join(ihbc.availableModes, ",")}
+    				));
+				}else
+				{
+					log("currentTempItem not set!");
+				}
+			}	
+			else if(ihbc.type.equals(DeviceTypes.TYPE_CAMERA)){
+				if(StringUtils.isNotBlank(ihbc.login)){
+	    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+						new Object[]{"key", "Login"},
+						new Object[]{"value", ihbc.login }
+					));
+				}
+				if(StringUtils.isNotBlank(ihbc.password)){
+	    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+						new Object[]{"key", "Password"},
+						new Object[]{"value", ihbc.password }
+					));
+				}
+				if(StringUtils.isNotBlank(ihbc.localmjpegurl)){
+	    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+						new Object[]{"key", "localmjpegurl"},
+						new Object[]{"value", ihbc.localmjpegurl }
+					));
+				}
+				if(StringUtils.isNotBlank(ihbc.remotemjpegurl)){
+	    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+						new Object[]{"key", "remotemjpegurl"},
+						new Object[]{"value", ihbc.remotemjpegurl }
+					));
+				}	
+				if(StringUtils.isNotBlank(ihbc.proxyjpegurl)){					
+					String proxyUri = hostUrl+ "camera/" + ihbc.name;
+	    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+						new Object[]{"key", "remotejpegurl"},
+						new Object[]{"value", proxyUri }
+					));
+	    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+						new Object[]{"key", "localjpegurl"},
+						new Object[]{"value", proxyUri }
+					));
+				}else{
+					if(StringUtils.isNotBlank(ihbc.localjpegurl)){
+		    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+							new Object[]{"key", "localjpegurl"},
+							new Object[]{"value", ihbc.localjpegurl }
+						));
+					}
+					if(StringUtils.isNotBlank(ihbc.remotejpegurl)){
+		    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+							new Object[]{"key", "remotejpegurl"},
+							new Object[]{"value", ihbc.remotejpegurl }
+						));
+					}
+				}
+			}
+			else if(ihbc.type.equals(DeviceTypes.TYPE_DIMMER)){
     			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
 					new Object[]{"key", "Level"},
 					new Object[]{"value", String.valueOf(item.getState())}
@@ -168,6 +328,19 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
     			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
 					new Object[]{"key", "Status"},
 					new Object[]{"value", item.getStateAs(OnOffType.class) == OnOffType.ON ? (ihbc.invert ? "0" : "1") : (ihbc.invert ? "1" : "0") }
+				));
+			}else if(ihbc.type.equals(DeviceTypes.TYPE_SHUTTER)){
+    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+					new Object[]{"key", "Level"},
+					new Object[]{"value", String.valueOf(item.getState())}
+				));
+    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+					new Object[]{"key", "stopable"},
+					new Object[]{"value", ihbc.stopable ? "1" : "0" }
+				));
+    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+					new Object[]{"key", "pulseable"},
+					new Object[]{"value", ihbc.pulseable ? "1" : "0" }
 				));
 			}else if(ihbc.type.equals(DeviceTypes.TYPE_SWITCH) || ihbc.type.equals(DeviceTypes.TYPE_LOCK)){
     			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
@@ -181,12 +354,32 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
 					new Object[]{"unit", "%"},
 					new Object[]{"graphable", "true"}
 				));
+			}else if(ihbc.type.equals(DeviceTypes.TYPE_TEMP_HYGRO)){
+				String value = item.getState().toString();	
+    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+					new Object[]{"key", "temp"},
+					new Object[]{"value", String.valueOf(getStateAsDouble(value))},
+					new Object[]{"graphable", "true"},
+					new Object[]{"unit", getTempUnit(ihbc.unit)}
+				));
+    			if(StringUtils.isNotBlank(ihbc.hygroId)){
+    				Item otherItem = items.get(ihbc.hygroId);
+    				if(otherItem != null){
+		    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+							new Object[]{"key", "hygro"},
+							new Object[]{"value", String.valueOf(getStateAsDouble(otherItem.getState().toString()))},
+							new Object[]{"graphable", "true"},
+							new Object[]{"unit", "%"}
+						));
+    				}
+    			}
 			}else if(ihbc.type.equals(DeviceTypes.TYPE_TEMPERATURE)){
-				String value = item.getState().toString();
+				String value = item.getState().toString();	
     			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
 					new Object[]{"key", "Value"},
 					new Object[]{"value", String.valueOf(getStateAsDouble(value))},
-					new Object[]{"graphable", "true"}
+					new Object[]{"graphable", "true"},
+					new Object[]{"unit", getTempUnit(ihbc.unit)}
 				));
 			}else if(ihbc.type.equals(DeviceTypes.TYPE_LUMINOSITY)){
     			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
@@ -296,5 +489,29 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
             value = Double.parseDouble(state);  // this can be set to UNINITIALIZED
         } catch (Exception ex) { }
         return value;
+	}
+	
+	private float tryParseFloat(String value){
+		float result = 0f;
+        try {
+        	result = Float.parseFloat(value);
+        } catch (Exception ex) { }
+        return result;
+	}
+	
+	private boolean tryParseBoolean(String value){
+		if(value == null || StringUtils.isBlank(value))
+			return false;
+		return value.equalsIgnoreCase("1") || value.equalsIgnoreCase("true") || value.equalsIgnoreCase("yes"); 
+	}
+	
+	private String getTempUnit(String unit){
+		if(StringUtils.isBlank(unit)){
+			if(StringUtils.isBlank(DEFAULT_TEMPERATURE_UNIT))
+				return null;
+			return "\u00B0" + DEFAULT_TEMPERATURE_UNIT;
+		}
+		return "\u00B0" + unit;
+			
 	}
 }

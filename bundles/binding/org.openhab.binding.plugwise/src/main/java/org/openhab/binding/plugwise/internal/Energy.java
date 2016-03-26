@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2016, openHAB.org and others.
+ * Copyright (c) 2010-2015, openHAB.org and others.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -19,64 +19,63 @@ import org.joda.time.DateTimeZone;
  * @since 1.1.0
  */
 public class Energy {
+			
+	private DateTime time;
+	private long pulses;
+	private int interval;
+	
+	public Energy(String logdate, long l, int interval) {
+				
+		if(logdate.length() == 8) {
 
-    private DateTime time;
-    private long pulses;
-    private int interval;
+			if(!logdate.equals("FFFFFFFF")) {
 
-    public Energy(String logdate, long l, int interval) {
+				int year = 0;
+				int month = 0;
+				long minutes = 0;
 
-        if (logdate.length() == 8) {
+				year = Integer.parseInt(StringUtils.left(logdate, 2), 16) + 2000;
+				month = Integer.parseInt(StringUtils.mid(logdate, 2, 2), 16);
+				minutes = Long.parseLong(StringUtils.right(logdate, 4), 16);
 
-            if (!logdate.equals("FFFFFFFF")) {
+				time = new DateTime(year, month, 1, 0, 0, DateTimeZone.UTC).plusMinutes((int) minutes).toDateTime(DateTimeZone.getDefault()).minusHours(1);
+	
+			} else {
+				time = DateTime.now();
+				this.interval = interval;
+				this.pulses = 0;
+			}
+						
+		} else {
+			time = DateTime.now();
+		}
+		
+		this.interval = interval;
+		this.pulses = l;
+		
+	}
+	
+	public Energy(DateTime logdate, long pulses, int interval) {
+		time  = logdate;
+		this.interval = interval;
+		this.pulses = pulses;
+	}
+	
+	public String toString() {
+		return time.toString() + "-" + Integer.toString(interval) + "-" + Long.toString(pulses);
+	}
 
-                int year = 0;
-                int month = 0;
-                long minutes = 0;
+	public DateTime getTime() {
+		return time;
+	}
 
-                year = Integer.parseInt(StringUtils.left(logdate, 2), 16) + 2000;
-                month = Integer.parseInt(StringUtils.mid(logdate, 2, 2), 16);
-                minutes = Long.parseLong(StringUtils.right(logdate, 4), 16);
+	public long getPulses() {
+		return pulses;
+	}
 
-                time = new DateTime(year, month, 1, 0, 0, DateTimeZone.UTC).plusMinutes((int) minutes)
-                        .toDateTime(DateTimeZone.getDefault()).minusHours(1);
-
-            } else {
-                time = DateTime.now();
-                this.interval = interval;
-                this.pulses = 0;
-            }
-
-        } else {
-            time = DateTime.now();
-        }
-
-        this.interval = interval;
-        this.pulses = l;
-
-    }
-
-    public Energy(DateTime logdate, long pulses, int interval) {
-        time = logdate;
-        this.interval = interval;
-        this.pulses = pulses;
-    }
-
-    @Override
-    public String toString() {
-        return time.toString() + "-" + Integer.toString(interval) + "-" + Long.toString(pulses);
-    }
-
-    public DateTime getTime() {
-        return time;
-    }
-
-    public long getPulses() {
-        return pulses;
-    }
-
-    public int getInterval() {
-        return interval;
-    }
+	public int getInterval() {
+		return interval;
+	}
+		
 
 }

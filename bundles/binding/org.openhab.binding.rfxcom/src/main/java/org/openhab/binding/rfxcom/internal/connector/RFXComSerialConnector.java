@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2016, openHAB.org and others.
+ * Copyright (c) 2010-2015, openHAB.org and others.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -8,15 +8,21 @@
  */
 package org.openhab.binding.rfxcom.internal.connector;
 
+import gnu.io.CommPort;
+import gnu.io.CommPortIdentifier;
+import gnu.io.NoSuchPortException;
+import gnu.io.PortInUseException;
+import gnu.io.SerialPort;
+import gnu.io.UnsupportedCommOperationException;
+
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InterruptedIOException;
+import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import java.util.TooManyListenersException;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 import javax.xml.bind.DatatypeConverter;
 
@@ -24,237 +30,196 @@ import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import gnu.io.CommPort;
-import gnu.io.CommPortIdentifier;
-import gnu.io.NoSuchPortException;
-import gnu.io.PortInUseException;
-import gnu.io.SerialPort;
-import gnu.io.SerialPortEvent;
-import gnu.io.SerialPortEventListener;
-import gnu.io.UnsupportedCommOperationException;
-
 /**
  * RFXCOM connector for serial port communication.
- *
- * @author Pauli Anttila, Evert van Es, Jürgen Richtsfeld
+ * 
+ * @author Pauli Anttila, Evert van Es
  * @since 1.2.0
  */
 public class RFXComSerialConnector implements RFXComConnectorInterface {
 
-    private static final Logger logger = LoggerFactory.getLogger(RFXComSerialConnector.class);
+	private static final Logger logger = LoggerFactory
+			.getLogger(RFXComSerialConnector.class);
 
-    private static final List<RFXComEventListener> _listeners = new CopyOnWriteArrayList<RFXComEventListener>();
+	private static List<RFXComEventListener> _listeners = new ArrayList<RFXComEventListener>();
 
-    InputStream in = null;
-    OutputStream out = null;
-    SerialPort serialPort = null;
-    Thread readerThread = null;
-    private boolean ignoreReceiveBuffer = false;
+	InputStream in = null;
+	OutputStream out = null;
+	SerialPort serialPort = null;
+	Thread readerThread = null;
 
-    public RFXComSerialConnector() {
-    }
+	public RFXComSerialConnector() {
+	}
 
-    @Override
-    public void connect(String device)
-            throws NoSuchPortException, PortInUseException, UnsupportedCommOperationException, IOException {
-        CommPortIdentifier portIdentifier = CommPortIdentifier.getPortIdentifier(device);
+	@Override
+	public void connect(String device) throws NoSuchPortException, PortInUseException, UnsupportedCommOperationException, IOException {
+		CommPortIdentifier portIdentifier = CommPortIdentifier
+				.getPortIdentifier(device);
 
-        CommPort commPort = portIdentifier.open(this.getClass().getName(), 2000);
+		CommPort commPort = portIdentifier
+				.open(this.getClass().getName(), 2000);
 
-        serialPort = (SerialPort) commPort;
-        serialPort.setSerialPortParams(38400, SerialPort.DATABITS_8, SerialPort.STOPBITS_1, SerialPort.PARITY_NONE);
-        serialPort.enableReceiveThreshold(1);
-        serialPort.disableReceiveTimeout();
+		serialPort = (SerialPort) commPort;
+		serialPort.setSerialPortParams(38400, SerialPort.DATABITS_8,
+				SerialPort.STOPBITS_1, SerialPort.PARITY_NONE);
+		serialPort.enableReceiveThreshold(1);
+		serialPort.disableReceiveTimeout();
+		
+		in = serialPort.getInputStream();
+		out = serialPort.getOutputStream();
+		
+		out.flush();
+		if (in.markSupported()) {
+			in.reset();
+		}
 
-        in = serialPort.getInputStream();
-        out = serialPort.getOutputStream();
+		readerThread = new SerialReader(in);
+		readerThread.start();
+	}
 
-        out.flush();
-        if (in.markSupported()) {
-            in.reset();
-        }
+	@Override
+	public void disconnect() {
+		logger.debug("Disconnecting");
+		
+		if (readerThread != null) {
+			logger.debug("Interrupt serial listener");
+			readerThread.interrupt();
+		}
 
-        readerThread = new SerialReader(in);
-        readerThread.start();
-    }
+		if (out != null) {
+			logger.debug("Close serial out stream");
+			IOUtils.closeQuietly(out);
+		}
+		if (in != null) {
+			logger.debug("Close serial in stream");
+			IOUtils.closeQuietly(in);
+		}
 
-    @Override
-    public void disconnect() {
-        logger.debug("Disconnecting");
+		if (serialPort != null) {
+			logger.debug("Close serial port");
+			serialPort.close();
+		}
 
-        if (readerThread != null) {
-            logger.debug("Interrupt serial listener");
-            readerThread.interrupt();
-        }
+		readerThread = null;
+		serialPort = null;
+		out = null;
+		in = null;
+		
+		logger.debug("Closed");
+	}
+	
+	
+	@Override
+	public void sendMessage(byte[] data) throws IOException {
+		out.write(data);
+		out.flush();
+	}
 
-        if (out != null) {
-            logger.debug("Close serial out stream");
-            IOUtils.closeQuietly(out);
-        }
-        if (in != null) {
-            logger.debug("Close serial in stream");
-            IOUtils.closeQuietly(in);
-        }
+	public synchronized void addEventListener(RFXComEventListener rfxComEventListener) {
+		_listeners.add(rfxComEventListener);
+	}
 
-        if (serialPort != null) {
-            logger.debug("Close serial port");
-            serialPort.close();
-        }
+	public synchronized void removeEventListener(RFXComEventListener listener) {
+		_listeners.remove(listener);
+	}
 
-        readerThread = null;
-        serialPort = null;
-        out = null;
-        in = null;
+	public class SerialReader extends Thread {
+		boolean interrupted = false;
+		InputStream in;
 
-        logger.debug("Closed");
-    }
+		public SerialReader(InputStream in) {
+			this.in = in;
+		}
+		
+		@Override
+		public void interrupt() {
+			interrupted = true;
+			super.interrupt();
+		    try {
+		      in.close();
+		    } catch (IOException e) {} // quietly close
+		}
 
-    @Override
-    public void sendMessage(byte[] data) throws IOException {
-        out.write(data);
-        out.flush();
-    }
+		public void run() {
+			final int dataBufferMaxLen = Byte.MAX_VALUE;
 
-    @Override
-    public void addEventListener(RFXComEventListener rfxComEventListener) {
-        _listeners.add(rfxComEventListener);
-    }
+			byte[] dataBuffer = new byte[dataBufferMaxLen];
 
-    @Override
-    public void removeEventListener(RFXComEventListener listener) {
-        _listeners.remove(listener);
-    }
+			int msgLen = 0;
+			int index = 0;
+			boolean start_found = false;
 
-    public class SerialReader extends Thread implements SerialPortEventListener {
-        boolean interrupted = false;
-        InputStream in;
+			logger.debug("Data listener started");
+			
+			try {
 
-        public SerialReader(InputStream in) {
-            this.in = in;
-        }
+				byte[] tmpData = new byte[20];
+				int len = -1;
 
-        @Override
-        public void interrupt() {
-            interrupted = true;
-            super.interrupt();
-            try {
-                in.close();
-            } catch (IOException e) {
-            } // quietly close
-        }
+				while ((len = in.read(tmpData)) > 0 && interrupted != true) {
+					
+					byte[] logData = Arrays.copyOf(tmpData, len);
+					logger.trace("Received data (len={}): {}",
+							len,
+							DatatypeConverter.printHexBinary(logData));
+					
+					for (int i = 0; i < len; i++) {
 
-        @Override
-        public void run() {
-            final int dataBufferMaxLen = Byte.MAX_VALUE;
+						if (index > dataBufferMaxLen) {
+							// too many bytes received, try to find new start
+							start_found = false;
+						}
 
-            byte[] dataBuffer = new byte[dataBufferMaxLen];
+						if (start_found == false && tmpData[i] > 0) {
 
-            int msgLen = 0;
-            int index = 0;
-            boolean start_found = false;
+							start_found = true;
+							index = 0;
+							dataBuffer[index++] = tmpData[i];
+							msgLen = tmpData[i] + 1;
 
-            logger.debug("Data listener started");
+						} else if (start_found) {
 
-            // RXTX serial port library causes high CPU load
-            // Start event listener, which will just sleep and slow down event loop
-            try {
-                serialPort.addEventListener(this);
-                serialPort.notifyOnDataAvailable(true);
-            } catch (TooManyListenersException e) {
-            }
+							dataBuffer[index++] = tmpData[i];
 
-            try {
+							if (index == msgLen) {
 
-                byte[] tmpData = new byte[20];
-                int len = -1;
+								// whole message received, send an event
 
-                while ((len = in.read(tmpData)) > 0 && !interrupted) {
+								byte[] msg = new byte[msgLen];
 
-                    byte[] logData = Arrays.copyOf(tmpData, len);
-                    logger.trace("Received data (len={}): {}", len, DatatypeConverter.printHexBinary(logData));
+								for (int j = 0; j < msgLen; j++)
+									msg[j] = dataBuffer[j];
 
-                    if (ignoreReceiveBuffer) {
-                        // any data already in receive buffer will be ignored
-                        ignoreReceiveBuffer = false;
-                        start_found = false;
-                        if (index > 0) {
-                            logger.trace("Ignoring data in receive Buffer : " + index + " bytes");
-                        }
-                    }
-                    for (int i = 0; i < len; i++) {
+								RFXComMessageReceivedEvent event = new RFXComMessageReceivedEvent(
+										this);
 
-                        if (index > dataBufferMaxLen) {
-                            // too many bytes received, try to find new start
-                            start_found = false;
-                        }
+								try {
+									Iterator<RFXComEventListener> iterator = _listeners
+											.iterator();
 
-                        if (start_found == false && tmpData[i] > 0) {
+									while (iterator.hasNext()) {
+										((RFXComEventListener) iterator.next())
+												.packetReceived(event, msg);
+									}
 
-                            start_found = true;
-                            index = 0;
-                            dataBuffer[index++] = tmpData[i];
-                            msgLen = tmpData[i] + 1;
+								} catch (Exception e) {
+									logger.error("Event listener invoking error", e);
+								}
 
-                        } else if (start_found) {
-
-                            dataBuffer[index++] = tmpData[i];
-
-                            if (index == msgLen) {
-
-                                // whole message received, send an event
-
-                                byte[] msg = new byte[msgLen];
-
-                                for (int j = 0; j < msgLen; j++) {
-                                    msg[j] = dataBuffer[j];
-                                }
-
-                                RFXComMessageReceivedEvent event = new RFXComMessageReceivedEvent(this);
-
-                                try {
-                                    Iterator<RFXComEventListener> iterator = _listeners.iterator();
-
-                                    while (iterator.hasNext()) {
-                                        iterator.next().packetReceived(event, msg);
-                                    }
-
-                                } catch (Exception e) {
-                                    logger.error("Event listener invoking error", e);
-                                }
-
-                                // find new start
-                                start_found = false;
-                            }
-                        }
-                    }
-                }
-            } catch (InterruptedIOException e) {
-                Thread.currentThread().interrupt();
-                logger.error("Interrupted via InterruptedIOException");
-            } catch (IOException e) {
-                logger.error("Reading from serial port failed", e);
-            }
-
-            serialPort.removeEventListener();
-            logger.debug("Data listener stopped");
-        }
-
-        @Override
-        public void serialEvent(SerialPortEvent arg0) {
-            try {
-                logger.trace("RXTX library CPU load workaround, sleep forever");
-                sleep(Long.MAX_VALUE);
-            } catch (InterruptedException e) {
-            }
-        }
-    }
-
-    public boolean isConnected() {
-        return out != null;
-    }
-    
-    @Override
-    public void clearReceiveBuffer() {
-        ignoreReceiveBuffer = true;
-    }
+								// find new start
+								start_found = false;
+							}
+						}
+					}
+				}
+			} catch (InterruptedIOException e) {
+			      Thread.currentThread().interrupt();
+			      logger.error("Interrupted via InterruptedIOException");
+			} catch (IOException e) {
+				logger.error("Reading from serial port failed", e);
+			}
+			
+			logger.debug("Data listener stopped");
+		}
+	}
 }

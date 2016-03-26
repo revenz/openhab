@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2015, openHAB.org and others.
+ * Copyright (c) 2010-2014, openHAB.org and others.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -10,33 +10,34 @@ package com.myhome.fcrisciani.exception;
 
 /**
  * This class represents a specific open command exception
- *
+ * 
  * @author Flavio Crisciani
  * @serial 1.0
  * @since 1.7.0
  */
 public class MalformedCommandOPEN extends Exception {
+	
+	// ----- TYPES ----- //
 
-    // ----- TYPES ----- //
+	// ---- MEMBERS ---- //
+	private static final long serialVersionUID = -4446224937634207778L;
 
-    // ---- MEMBERS ---- //
-    private static final long serialVersionUID = -4446224937634207778L;
+	String commandNotRecognised = null;
 
-    String commandNotRecognised = null;
+	// ---- METHODS ---- //
 
-    // ---- METHODS ---- //
+	public MalformedCommandOPEN(String commandNotRecognised) {
+		super();
+		this.commandNotRecognised = commandNotRecognised;
+	}
 
-    public MalformedCommandOPEN(String commandNotRecognised) {
-        super();
-        this.commandNotRecognised = commandNotRecognised;
-    }
+	@Override
+	public String getLocalizedMessage() {
+		StringBuilder builder = new StringBuilder();
 
-    @Override
-    public String getLocalizedMessage() {
-        StringBuilder builder = new StringBuilder();
+		builder.append("Command OPEN: ").append(commandNotRecognised)
+				.append(" has not a valid format");
 
-        builder.append("Command OPEN: ").append(commandNotRecognised).append(" has not a valid format");
-
-        return builder.toString();
-    }
+		return builder.toString();
+	}
 }

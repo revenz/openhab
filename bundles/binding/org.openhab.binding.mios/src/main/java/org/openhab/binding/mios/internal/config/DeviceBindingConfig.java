@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2016, openHAB.org and others.
+ * Copyright (c) 2010-2015, openHAB.org and others.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -11,14 +11,12 @@ package org.openhab.binding.mios.internal.config;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.openhab.binding.mios.internal.MiosActivator;
 import org.openhab.core.items.Item;
-import org.openhab.core.library.items.ColorItem;
 import org.openhab.core.transform.TransformationException;
 import org.openhab.core.transform.TransformationHelper;
 import org.openhab.core.transform.TransformationService;
@@ -29,7 +27,7 @@ import org.osgi.framework.BundleContext;
 /**
  * A BindingConfig object targeted at MiOS Device Variables and Attributes.
  * <p>
- *
+ * 
  * The device-specific form of a MiOS Binding is:<br>
  * <ul>
  * <li><nobr>
@@ -38,12 +36,13 @@ import org.osgi.framework.BundleContext;
  * <li><nobr>
  * <tt>mios="unit:<i>unitName</i>,device:<i>deviceId</i>/service/<i>serviceAlias</i>/<i>serviceVariable</i>,<i>optionalTransformations</i></tt>
  * </nobr>
- * <li><nobr> <tt>mios="unit:<i>unitName</i>,device:<i>deviceId</i>/<i>attrName</i>,<i>optionalTransformations</i></tt>
+ * <li><nobr>
+ * <tt>mios="unit:<i>unitName</i>,device:<i>deviceId</i>/<i>attrName</i>,<i>optionalTransformations</i></tt>
  * </nobr>
  * </ul>
  * <p>
- *
- *
+ * 
+ * 
  * Example Item declarations...<br>
  * <ul>
  * <li>
@@ -56,9 +55,9 @@ import org.osgi.framework.BundleContext;
  * <code><nobr>Dimmer FamilyTheatreLightsLoadLevelStatus "Family Theatre Lights [%d] %" &lt;slider&gt; (GDimmer) {mios="unit:house,device:13/service/urn:upnp-org:serviceId:Dimming1/LoadLevelStatus,command:MAP(miosDimmerCommand.map)", autoupdate="false"}</nobr></code>
  * </ul>
  * <p>
- *
- * There are also a set of pre-defined UPnP Service aliases, so a short-hand notation can be used for common UPnP
- * ServiceId's:<br>
+ * 
+ * There are also a set of pre-defined UPnP Service aliases, so a short-hand
+ * notation can be used for common UPnP ServiceId's:<br>
  * <ul>
  * <li>
  * <code><nobr>Number MiOSMemoryAvailable "Available [%.0f KB]" (BindingDemo) {mios="unit:house,device:382/service/SystemMonitor/memoryAvailable"}</nobr></code>
@@ -70,13 +69,14 @@ import org.osgi.framework.BundleContext;
  * <code><nobr>Dimmer FamilyTheatreLightsLoadLevelStatus "Family Theatre Lights [%d] %" &lt;slider&gt; (GDimmer) {mios="unit:house,device:13/service/Dimming1/LoadLevelStatus,command:MAP(miosDimmerCommand.map)", autoupdate="false"}</nobr></code>
  * </ul>
  * <p>
- *
- * The complete list of UPnP Service aliases is listed in the documentation file, or can be seen in the file
- * <code>ServiceAliases.properties</code>.
+ * 
+ * The complete list of UPnP Service aliases is listed in the documentation
+ * file, or can be seen in the file <code>ServiceAliases.properties</code>.
  * <p>
- *
- * In addition to binding against a Device's Variables, you can bind to the set of Device Attributes it exposes.
- * Specifically it's <code>id</code> and <code>status</code>:
+ * 
+ * In addition to binding against a Device's Variables, you can bind to the set
+ * of Device Attributes it exposes. Specifically it's <code>id</code> and
+ * <code>status</code>:
  * <p>
  * <ul>
  * <li>
@@ -85,395 +85,431 @@ import org.osgi.framework.BundleContext;
  * <code><nobr>String   FamilyTheatreLightsDeviceStatus "Device Status [%s]" {mios="unit:house,device:13/status,in:MAP(miosStatusIn.map)"}</nobr></code>
  * </ul>
  * <p>
- *
+ * 
  * <b>Optional Transformations</b>
  * <p>
- * In many cases, the values exposed by a MiOS Unit aren't suitable for use within openHAB, and a value
- * mapping/transformation may be needed.
+ * In many cases, the values exposed by a MiOS Unit aren't suitable for use
+ * within openHAB, and a value mapping/transformation may be needed.
  * <p>
- *
- * Values may be transformed using an input transformation (<code>in:</code>) or a command transformation (
- * <code>command:</code>). In future, values will also be transformed prior to being sent to a MiOS Unit via the output
+ * 
+ * Values may be transformed using an input transformation (<code>in:</code>) or
+ * a command transformation (<code>command:</code>). In future, values will also
+ * be transformed prior to being sent to a MiOS Unit via the output
  * transformation (<code>out:</code>)
  * <p>
- *
- * Transformation files are provided, for the common input and command transformations, in the
- * <code>examples/transform</code> directory of the MiOS Binding.
+ * 
+ * Transformation files are provided, for the common input and command
+ * transformations, in the <code>examples/transform</code> directory of the MiOS
+ * Binding.
  * <p>
- * The examples presented here assume that these MAP transformation files have been copied to the appropriate openHAB
- * configuration location (typically <code>configuration/transform</code>).
+ * The examples presented here assume that these MAP transformation files have
+ * been copied to the appropriate openHAB configuration location (typically
+ * <code>configuration/transform</code>).
  * <p>
- *
+ * 
  * There are example Input transformation maps:
  * <ul>
- * <li><code>miosSwitchIn.map</code> - MiOS Switch device ( <code>service/SwitchPower1/Status</code>) properties when
- * mapped to a <code>Switch</code> Item.
- * <li><code>miosStatusIn.map</code> - MiOS Status attributes ( <code>/status</code>) to make them readable states when
- * mapped to a <code>String</code> Item.
- * <li><code>miosContactIn.map</code> - MiOS Security Sensor device ( <code>/service/SecuritySensor1/Tripped</code>)
- * when mapped to a <code>Contact</code> Item.
- * <li><code>miosZWaveStatusIn.map</code> - MiOS System attribute ( <code>system:/ZWaveStatus</code>) when mapped to a
+ * <li><code>miosSwitchIn.map</code> - MiOS Switch device (
+ * <code>service/SwitchPower1/Status</code>) properties when mapped to a
+ * <code>Switch</code> Item.
+ * <li><code>miosStatusIn.map</code> - MiOS Status attributes (
+ * <code>/status</code>) to make them readable states when mapped to a
  * <code>String</code> Item.
+ * <li><code>miosContactIn.map</code> - MiOS Security Sensor device (
+ * <code>/service/SecuritySensor1/Tripped</code>) when mapped to a
+ * <code>Contact</code> Item.
+ * <li><code>miosZWaveStatusIn.map</code> - MiOS System attribute (
+ * <code>system:/ZWaveStatus</code>) when mapped to a <code>String</code> Item.
  * <li><code>miosWeatherConditionGroupIn.map</code> - MiOS
  * </ul>
- *
+ * 
  * <p>
  * Example Output transformation maps:
  * <ul>
  * <li><code>miosSwitchOut.map</code> - MiOS
  * <li><code>miosContactOut.map</code> - MiOS
  * </ul>
- *
+ * 
  * <p>
  * And example Command transformation maps:
  * <ul>
- * <li><code>miosArmedCommand.map</code> - MiOS Security Sensor device ( <code>/service/SecuritySensor1/Armed</code>)
- * when mapped to a <code>Switch</code> Item.
- * <li><code>miosDimmerCommand.map</code> - MiOS Dimmer device ( <code>/service/Dimming1/LoadLevelStatus</code>) when
- * mapped to a <code>Dimmer</code> Item.
- * <li><code>miosLockCommand.map</code> - MiOS Lock device ( <code>/service/DoorLock1/Status</code>) properties when
- * mapped to a <code>Switch</code> Item.
+ * <li><code>miosArmedCommand.map</code> - MiOS Security Sensor device (
+ * <code>/service/SecuritySensor1/Armed</code>) when mapped to a
+ * <code>Switch</code> Item.
+ * <li><code>miosDimmerCommand.map</code> - MiOS Dimmer device (
+ * <code>/service/Dimming1/LoadLevelStatus</code>) when mapped to a
+ * <code>Dimmer</code> Item.
+ * <li><code>miosLockCommand.map</code> - MiOS Lock device (
+ * <code>/service/DoorLock1/Status</code>) properties when mapped to a
+ * <code>Switch</code> Item.
  * <li><code>miosTStatModeStatusCommand.map</code> - MiOS Thermostat device (
- * <code>/service/HVAC_UserOperatingMode1/ModeStatus</code>) when mapped to a <code>String</code> Item.
+ * <code>/service/HVAC_UserOperatingMode1/ModeStatus</code>) when mapped to a
+ * <code>String</code> Item.
  * <li><code>miosTStatSetpointCoolCommand.map</code> - MiOS Thermostat device (
- * <code>/service/TemperatureSetpoint1_Cool/CurrentSetpoint</code>) when mapped to a <code>Number</code> Item.
+ * <code>/service/TemperatureSetpoint1_Cool/CurrentSetpoint</code>) when mapped
+ * to a <code>Number</code> Item.
  * <li><code>miosTStatSetpointHeatCommand.map</code> - MiOS Thermostat device (
- * <code>/service/TemperatureSetpoint1_Heat/CurrentSetpoint</code>) when mapped to a <code>Number</code> Item.
- * <li><code>miosTStatFanOperatingModeCommand.map</code> - MiOS Thermostat device (
- * <code>/service/HVAC_FanOperatingMode1/Mode</code>) when mapped to a <code>String</code> Item.
- * <li><code>miosUPnPRenderingControlVolumeCommand.map</code> - MiOS UPnP Volume (
- * <code>service/RenderingControl/Volume</code>) property when mapped to a <code>Dimmer</code> Item.
+ * <code>/service/TemperatureSetpoint1_Heat/CurrentSetpoint</code>) when mapped
+ * to a <code>Number</code> Item.
+ * <li><code>miosTStatFanOperatingModeCommand.map</code> - MiOS Thermostat
+ * device (<code>/service/HVAC_FanOperatingMode1/Mode</code>) when mapped to a
+ * <code>String</code> Item.
+ * <li><code>miosUPnPRenderingControlVolumeCommand.map</code> - MiOS UPnP Volume
+ * (<code>service/RenderingControl/Volume</code>) property when mapped to a
+ * <code>Dimmer</code> Item.
  * <li><code>miosUPnPRenderingControlMuteCommand.map</code> - MiOS UPnP Mute (
- * <code>service/RenderingControl/Mute</code>) property when mapped to a <code>Switch</code> Item.
- * <li><code>miosUPnPTransportStatePlayModeCommand.map</code> - MiOS UPnP PlayMode (
- * <code>service/AVTransport/TransportState</code>) when mapped to a <code>String</code> Item.
+ * <code>service/RenderingControl/Mute</code>) property when mapped to a
+ * <code>Switch</code> Item.
+ * <li><code>miosUPnPTransportStatePlayModeCommand.map</code> - MiOS UPnP
+ * PlayMode (<code>service/AVTransport/TransportState</code>) when mapped to a
+ * <code>String</code> Item.
  * </ul>
  * <p>
- *
- * More details on these mappings can be found in the <code>README.md<code> file associated
+ * 
+ * More details on these mappings can be found in the
+ * <code>README.md<code> file associated
  * with this Binding.
  * <p>
- *
+ * 
  * @author Mark Clark
  * @since 1.6.0
  */
 public class DeviceBindingConfig extends MiosBindingConfig {
 
-    private static final String DEFAULT_COMMAND_TRANSFORM = "_defaultCommand";
+	private static final String DEFAULT_COMMAND_TRANSFORM = "_defaultCommand";
 
-    private static Map<String, String> COMMAND_DEFAULTS = new HashMap<String, String>();
+	private static Map<String, String> COMMAND_DEFAULTS = new HashMap<String, String>();
 
-    static {
-        COMMAND_DEFAULTS.put("ON", "urn:upnp-org:serviceId:SwitchPower1/SetTarget(newTargetValue=1)");
-        COMMAND_DEFAULTS.put("OFF", "urn:upnp-org:serviceId:SwitchPower1/SetTarget(newTargetValue=0)");
-        COMMAND_DEFAULTS.put("TOGGLE", "urn:micasaverde-com:serviceId:HaDevice1/ToggleState()");
-        COMMAND_DEFAULTS.put("INCREASE", "urn:upnp-org:serviceId:Dimming1/StepUp()");
-        COMMAND_DEFAULTS.put("DECREASE", "urn:upnp-org:serviceId:Dimming1/StepDown()");
-        COMMAND_DEFAULTS.put("UP", "urn:upnp-org:serviceId:WindowCovering1/Up()");
-        COMMAND_DEFAULTS.put("DOWN", "urn:upnp-org:serviceId:WindowCovering1/Down()");
-        COMMAND_DEFAULTS.put("STOP", "urn:upnp-org:serviceId:WindowCovering1/Stop()");
-    }
+	static {
+		COMMAND_DEFAULTS
+				.put("ON",
+						"urn:upnp-org:serviceId:SwitchPower1/SetTarget(newTargetValue=1)");
+		COMMAND_DEFAULTS
+				.put("OFF",
+						"urn:upnp-org:serviceId:SwitchPower1/SetTarget(newTargetValue=0)");
+		COMMAND_DEFAULTS.put("TOGGLE",
+				"urn:micasaverde-com:serviceId:HaDevice1/ToggleState()");
+		COMMAND_DEFAULTS.put("INCREASE",
+				"urn:upnp-org:serviceId:Dimming1/StepUp()");
+		COMMAND_DEFAULTS.put("DECREASE",
+				"urn:upnp-org:serviceId:Dimming1/StepDown()");
+	}
 
-    private static Properties aliasMap = new Properties();
-    private static String SERVICE_ALIASES = "org/openhab/binding/mios/internal/config/ServiceAliases.properties";
+	private static Properties aliasMap = new Properties();
+	private static String SERVICE_ALIASES = "org/openhab/binding/mios/internal/config/ServiceAliases.properties";
 
-    private static HashMap<String, ParameterDefaults> paramDefaults = new HashMap<String, ParameterDefaults>();
-    private static String PARAM_DEFAULTS = "org/openhab/binding/mios/internal/config/DeviceDefaults.properties";
+	private static HashMap<String, ParameterDefaults> paramDefaults = new HashMap<String, ParameterDefaults>();
+	private static String PARAM_DEFAULTS = "org/openhab/binding/mios/internal/config/DeviceDefaults.properties";
 
-    static {
-        ClassLoader cl = DeviceBindingConfig.class.getClassLoader();
-        InputStream input;
+	static {
+		ClassLoader cl = DeviceBindingConfig.class.getClassLoader();
+		InputStream input;
 
-        input = cl.getResourceAsStream(SERVICE_ALIASES);
+		input = cl.getResourceAsStream(SERVICE_ALIASES);
 
-        try {
-            aliasMap.load(input);
-            logger.debug("Successfully loaded UPnP Service Aliases from '{}', entries '{}'", SERVICE_ALIASES,
-                    aliasMap.size());
-        } catch (Exception e) {
-            // Pre-shipped with the Binding, so it should never error out.
-            logger.error("Failed to load Service Alias file '{}', Exception", SERVICE_ALIASES, e);
-        }
+		try {
+			aliasMap.load(input);
+			logger.debug(
+					"Successfully loaded UPnP Service Aliases from '{}', entries '{}'",
+					SERVICE_ALIASES, aliasMap.size());
+		} catch (Exception e) {
+			// Pre-shipped with the Binding, so it should never error out.
+			logger.error("Failed to load Service Alias file '{}', Exception",
+					SERVICE_ALIASES, e);
+		}
 
-        input = cl.getResourceAsStream(PARAM_DEFAULTS);
+		input = cl.getResourceAsStream(PARAM_DEFAULTS);
 
-        try {
-            Properties tmp = new Properties();
-            tmp.load(input);
+		try {
+			Properties tmp = new Properties();
+			tmp.load(input);
 
-            for (Entry<Object, Object> e : tmp.entrySet()) {
-                paramDefaults.put((String) e.getKey(), ParameterDefaults.parse((String) e.getValue()));
-            }
+			for (Map.Entry<Object, Object> e : tmp.entrySet()) {
+				paramDefaults.put((String) e.getKey(),
+						ParameterDefaults.parse((String) e.getValue()));
+			}
 
-            logger.debug("Successfully loaded Device Parameter defaults from '{}', entries '{}'", PARAM_DEFAULTS,
-                    paramDefaults.size());
-        } catch (Exception e) {
-            // Pre-shipped with the Binding, so it should never error out.
-            logger.error("Failed to load Device Parameter defaults file '{}', Exception", PARAM_DEFAULTS, e);
-        }
-    }
+			logger.debug(
+					"Successfully loaded Device Parameter defaults from '{}', entries '{}'",
+					PARAM_DEFAULTS, paramDefaults.size());
+		} catch (Exception e) {
+			// Pre-shipped with the Binding, so it should never error out.
+			logger.error(
+					"Failed to load Device Parameter defaults file '{}', Exception",
+					PARAM_DEFAULTS, e);
+		}
+	}
 
-    private static final Pattern SERVICE_IN_PATTERN = Pattern
-            .compile("service/(?<serviceName>[^/]+)(/(?<serviceVar>[^/]+))?");
+	private static final Pattern SERVICE_IN_PATTERN = Pattern
+			.compile("service/(?<serviceName>.+)/(?<serviceVar>.+)");
 
-    private static final Pattern SERVICE_COMMAND_TRANSFORM_PATTERN = Pattern
-            .compile("(?<transform>(?<transformCommand>[a-zA-Z]+)\\((?<transformParam>.*)\\))");
+	private static final Pattern SERVICE_COMMAND_TRANSFORM_PATTERN = Pattern
+			.compile("(?<transform>(?<transformCommand>[a-zA-Z]+)\\((?<transformParam>.*)\\))");
 
-    private static final Pattern SERVICE_COMMAND_INMAP_PATTERN = Pattern
-            .compile("(?<mapName>.+?)(=(?<serviceName>.+)/(?<serviceAction>.+))?");
+	private static final Pattern SERVICE_COMMAND_INMAP_PATTERN = Pattern
+			.compile("(?<mapName>.+?)(=(?<serviceName>.+)/(?<serviceAction>.+))?");
 
-    private String commandTransformName;
-    private String commandTransformParam;
-    private Map<String, String> commandMap;
+	private String commandTransformName;
+	private String commandTransformParam;
+	private Map<String, String> commandMap;
 
-    private TransformationService commandTransformationService;
+	private TransformationService commandTransformationService;
 
-    private DeviceBindingConfig(String context, String itemName, String unitName, int id, String stuff,
-            Class<? extends Item> itemType, String commandTransform, String inTransform, String outTransform)
-                    throws BindingConfigParseException {
-        super(context, itemName, unitName, id, stuff, itemType, commandTransform, inTransform, outTransform);
-    }
+	private DeviceBindingConfig(String context, String itemName,
+			String unitName, int id, String stuff,
+			Class<? extends Item> itemType, String commandTransform,
+			String inTransform, String outTransform)
+			throws BindingConfigParseException {
+		super(context, itemName, unitName, id, stuff, itemType,
+				commandTransform, inTransform, outTransform);
+	}
 
-    /**
-     * Map Aliased Service names into their "formal" UPnP-style format.
-     *
-     * @param source
-     *            the original Service name to be mapped
-     * @return the mapped UPnP-style Service name, if an alias mapping exists, or the original source value.
-     */
-    public static final String mapServiceAlias(String source) {
-        String mapped = (String) aliasMap.get(source);
+	/**
+	 * Static constructor-method.
+	 * 
+	 * @return an initialized MiOS Device Binding Configuration object.
+	 */
+	public static final MiosBindingConfig create(String context,
+			String itemName, String unitName, int id, String inStuff,
+			Class<? extends Item> itemType, String commandTransform,
+			String inTransform, String outTransform)
+			throws BindingConfigParseException {
+		try {
+			// Before we initialize, normalize the serviceId string used in any
+			// outgoing stuff.
+			String newInStuff = inStuff;
 
-        return (mapped == null) ? source : mapped;
-    }
+			String tmp;
+			Matcher matcher;
 
-    /**
-     * Static constructor-method.
-     *
-     * @return an initialized MiOS Device Binding Configuration object.
-     */
-    public static final MiosBindingConfig create(String context, String itemName, String unitName, int id,
-            String inStuff, Class<? extends Item> itemType, String commandTransform, String inTransform,
-            String outTransform) throws BindingConfigParseException {
-        try {
-            // Before we initialize, normalize the serviceId string used in any
-            // outgoing stuff.
-            String newInStuff = inStuff;
+			// Extract and Map the inbound names.
+			String iName = null;
+			String iVar = null;
 
-            Matcher matcher;
+			// Not a full match, will only modify things that start with
+			// "/service/"
+			matcher = SERVICE_IN_PATTERN.matcher(newInStuff);
+			if (matcher.matches()) {
+				iName = matcher.group("serviceName");
+				iVar = matcher.group("serviceVar");
 
-            // Extract and Map the inbound names.
-            String iName = null;
-            String iVar = null;
+				// Handle service name aliases.
+				tmp = (String) aliasMap.get(iName);
+				if (tmp != null) {
+					iName = tmp;
+				}
 
-            // Not a full match, will only modify things that start with
-            // "/service/"
-            matcher = SERVICE_IN_PATTERN.matcher(newInStuff);
-            if (matcher.matches()) {
-                iName = matcher.group("serviceName");
-                iVar = matcher.group("serviceVar");
+				// Rebuild, since we've normalized the name.
+				newInStuff = "service/" + iName + '/' + iVar;
+			}
 
-                // Handle service name aliases.
-                iName = mapServiceAlias(iName);
+			//
+			// Apply any "Default" values to the in:, out:, and command:
+			// transformations prior
+			// to converting them for internal usage.
+			//
+			ParameterDefaults pd = paramDefaults.get(newInStuff);
+			if (pd != null) {
+				logger.trace(
+						"Device ParameterDefaults FOUND '{}' for '{}', '{}'",
+						itemName, newInStuff, pd);
+				if (commandTransform == null) {
+					commandTransform = pd.getCommandTransform();
+					logger.trace(
+							"Device ParameterDefaults '{}' defaulted command: to '{}'",
+							itemName, commandTransform);
+				}
+				if (inTransform == null) {
+					inTransform = pd.getInTransform();
+					logger.trace(
+							"Device ParameterDefaults '{}' defaulted in: to '{}'",
+							itemName, inTransform);
+				}
+				if (outTransform == null) {
+					outTransform = pd.getOutTransform();
+					logger.trace(
+							"Device ParameterDefaults '{}' defaulted out: to '{}'",
+							itemName, outTransform);
+				}
+			} else {
+				logger.trace(
+						"Device ParameterDefaults NOT FOUND '{}' for '{}'",
+						itemName, newInStuff);
+			}
 
-                // Rebuild, since we've normalized the name.
-                newInStuff = "service/" + iName + (iVar == null ? "" : '/' + iVar);
-            }
+			String cTransform = null;
+			String cParam = null;
+			Map<String, String> cMap = null;
+			String newCommandTransform = commandTransform;
 
-            //
-            // Apply any "Default" values to the in:, out:, and command:
-            // transformations prior
-            // to converting them for internal usage.
-            //
-            ParameterDefaults pd = paramDefaults.get(newInStuff);
-            if (pd != null) {
-                logger.trace("Device ParameterDefaults FOUND '{}' for '{}', '{}'", itemName, newInStuff, pd);
-                if (commandTransform == null) {
-                    commandTransform = pd.getCommandTransform();
-                    logger.trace("Device ParameterDefaults '{}' defaulted command: to '{}'", itemName,
-                            commandTransform);
-                }
-                if (inTransform == null) {
-                    inTransform = pd.getInTransform();
-                    logger.trace("Device ParameterDefaults '{}' defaulted in: to '{}'", itemName, inTransform);
-                }
-                if (outTransform == null) {
-                    outTransform = pd.getOutTransform();
-                    logger.trace("Device ParameterDefaults '{}' defaulted out: to '{}'", itemName, outTransform);
-                }
-            } else {
-                logger.trace("Device ParameterDefaults NOT FOUND '{}' for '{}'", itemName, newInStuff);
-            }
+			if ("".equals(newCommandTransform)) {
+				// If it's present, but blank, use the global defaults.
+				cMap = COMMAND_DEFAULTS;
+			} else if (newCommandTransform != null) {
+				// Try for a match as a TransformationService.
+				matcher = SERVICE_COMMAND_TRANSFORM_PATTERN
+						.matcher(newCommandTransform);
+				if (matcher.matches()) {
+					cTransform = matcher.group("transformCommand");
+					cParam = matcher.group("transformParam");
+				} else { // Try as an inline static command mapping.
 
-            String cTransform = null;
-            String cParam = null;
-            Map<String, String> cMap = null;
-            String newCommandTransform = commandTransform;
+					String[] commandList = newCommandTransform.split("\\|");
+					String command;
 
-            if ("".equals(newCommandTransform)) {
-                // If it's present, but blank, use the global defaults.
-                cMap = COMMAND_DEFAULTS;
-            } else if (newCommandTransform != null) {
-                // Try for a match as a TransformationService.
-                matcher = SERVICE_COMMAND_TRANSFORM_PATTERN.matcher(newCommandTransform);
-                if (matcher.matches()) {
-                    cTransform = matcher.group("transformCommand");
-                    cParam = matcher.group("transformParam");
-                } else { // Try as an inline static command mapping.
+					Map<String, String> l = new HashMap<String, String>(
+							commandList.length);
 
-                    String[] commandList = newCommandTransform.split("\\|");
-                    String command;
+					String mapName;
+					String serviceStr;
+					String serviceName;
+					String serviceAction;
 
-                    Map<String, String> l = new HashMap<String, String>(commandList.length);
+					for (int i = 0; i < commandList.length; i++) {
+						command = commandList[i];
+						matcher = SERVICE_COMMAND_INMAP_PATTERN
+								.matcher(command);
+						if (matcher.matches()) {
+							mapName = matcher.group("mapName");
+							serviceName = matcher.group("serviceName");
+							serviceAction = matcher.group("serviceAction");
 
-                    String mapName;
-                    String serviceStr;
-                    String serviceName;
-                    String serviceAction;
+							if (serviceName != null) {
+								// Handle any Service Aliases that might have been used in the inline Map.
+								tmp = (String) aliasMap.get(serviceName);
+								if (tmp != null) {
+									serviceName = tmp;
+								}
 
-                    for (int i = 0; i < commandList.length; i++) {
-                        command = commandList[i];
-                        matcher = SERVICE_COMMAND_INMAP_PATTERN.matcher(command);
-                        if (matcher.matches()) {
-                            mapName = matcher.group("mapName");
-                            serviceName = matcher.group("serviceName");
-                            serviceAction = matcher.group("serviceAction");
+								serviceStr = serviceName + '/' + serviceAction;
+							} else {
+								serviceStr = null;
+							}
 
-                            if (serviceName != null) {
-                                // Handle any Service Aliases that might have been used in the inline Map.
-                                serviceName = mapServiceAlias(serviceName);
+							String oldMapName = l.put(mapName, serviceStr);
 
-                                serviceStr = serviceName + '/' + serviceAction;
-                            } else {
-                                serviceStr = null;
-                            }
+							if (oldMapName != null) {
+								throw new BindingConfigParseException(
+										String.format(
+												"Duplicate inline Map entry '%s' in command: '%s'",
+												oldMapName, newCommandTransform));
+							}
+						} else {
+							throw new BindingConfigParseException(
+									String.format(
+											"Invalid command, parameter format '%s' in command: '%s'",
+											command, newCommandTransform));
+						}
+					}
+					cMap = l;
+				}
+			}
 
-                            String oldMapName = l.put(mapName, serviceStr);
+			logger.trace("newInStuff '{}', iName '{}', iVar '{}'",
+					new Object[] { newInStuff, iName, iVar });
 
-                            if (oldMapName != null) {
-                                throw new BindingConfigParseException(
-                                        String.format("Duplicate inline Map entry '%s' in command: '%s'", oldMapName,
-                                                newCommandTransform));
-                            }
-                        } else {
-                            throw new BindingConfigParseException(
-                                    String.format("Invalid command, parameter format '%s' in command: '%s'", command,
-                                            newCommandTransform));
-                        }
-                    }
-                    cMap = l;
-                }
-            }
+			DeviceBindingConfig c = new DeviceBindingConfig(context, itemName,
+					unitName, id, newInStuff, itemType, newCommandTransform,
+					inTransform, outTransform);
+			c.initialize();
 
-            logger.trace("newInStuff '{}', iName '{}', iVar '{}'", new Object[] { newInStuff, iName, iVar });
+			c.commandTransformName = cTransform;
+			c.commandTransformParam = cParam;
+			c.commandMap = cMap;
+			return c;
+		} catch (Exception e) {
+			logger.debug(e.toString());
+			throw new BindingConfigParseException(e.getMessage());
+		}
+	}
 
-            DeviceBindingConfig c = new DeviceBindingConfig(context, itemName, unitName, id, newInStuff, itemType,
-                    newCommandTransform, inTransform, outTransform);
-            c.initialize();
+	/**
+	 * Returns the value "<code>device</code>".
+	 * 
+	 * @return the value "<code>device</code>"
+	 */
+	@Override
+	public String getMiosType() {
+		return "device";
+	}
 
-            c.commandTransformName = cTransform;
-            c.commandTransformParam = cParam;
-            c.commandMap = cMap;
-            return c;
-        } catch (Exception e) {
-            logger.debug(e.toString());
-            throw new BindingConfigParseException(e.getMessage());
-        }
-    }
+	private String getCommandTransformName() {
+		return commandTransformName;
+	}
 
-    /**
-     * Returns the value "<code>device</code>".
-     *
-     * @return the value "<code>device</code>"
-     */
-    @Override
-    public String getMiosType() {
-        return "device";
-    }
+	private String getCommandTransformParam() {
+		return commandTransformParam;
+	}
 
-    private String getCommandTransformName() {
-        return commandTransformName;
-    }
+	private Map<String, String> getCommandMap() {
+		return commandMap;
+	}
 
-    private String getCommandTransformParam() {
-        return commandTransformParam;
-    }
+	private TransformationService getCommandTransformationService() {
+		String name = getCommandTransformName();
 
-    private Map<String, String> getCommandMap() {
-        return commandMap;
-    }
+		if (name == null || name.equals("")) {
+			return null;
+		}
 
-    private TransformationService getCommandTransformationService() {
-        String name = getCommandTransformName();
+		if (commandTransformationService != null) {
+			return commandTransformationService;
+		}
 
-        if (name == null || name.equals("")) {
-            return null;
-        }
+		BundleContext context = MiosActivator.getContext();
 
-        if (commandTransformationService != null) {
-            return commandTransformationService;
-        }
+		commandTransformationService = TransformationHelper
+				.getTransformationService(context, name);
 
-        BundleContext context = MiosActivator.getContext();
+		if (commandTransformationService == null) {
 
-        commandTransformationService = TransformationHelper.getTransformationService(context, name);
+			logger.warn(
+					"Transformation Service (command) '{}' not found for declaration '{}'.",
+					name, getCommandTransform());
+		}
 
-        if (commandTransformationService == null) {
+		return commandTransformationService;
+	}
 
-            logger.warn("Transformation Service (command) '{}' not found for declaration '{}'.", name,
-                    getCommandTransform());
-        }
+	@Override
+	public String transformCommand(Command command)
+			throws TransformationException {
+		// Quickly return null if we don't support commands.
+		if (getCommandTransform() == null) {
+			return null;
+		}
 
-        return commandTransformationService;
-    }
+		TransformationService ts = getCommandTransformationService();
+		String result;
 
-    @Override
-    public String transformCommand(Command command) throws TransformationException {
-        // Quickly return null if we don't support commands.
-        if (getCommandTransform() == null) {
-            return null;
-        }
+		String key = command.toString();
+		if (ts != null) {
+			result = ts.transform(getCommandTransformParam(), key);
 
-        TransformationService ts = getCommandTransformationService();
-        String result;
+			// If we don't have a transform, look for a special one called
+			// "_default".
+			if (result == null || "".equals(result)) {
+				result = ts.transform(getCommandTransformParam(),
+						DEFAULT_COMMAND_TRANSFORM);
+			}
+		} else {
+			Map<String, String> map = getCommandMap();
+			if (map != null) {
+				String value = map.get(key);
+				if (value != null) {
+					result = value;
+				} else { // Attempt to provide a default Mapping for it.
+					if (map.containsKey(key)) {
+						result = COMMAND_DEFAULTS.get(key);
+					} else {
+						result = key;
+					}
+				}
+			} else {
+				result = COMMAND_DEFAULTS.get(key);
+			}
+		}
 
-        String key = command.toString();
-        if (ts != null) {
-            result = ts.transform(getCommandTransformParam(), key);
-
-            // If we don't have a transform, look for a special one called
-            // "_default".
-            if (result == null || "".equals(result) || key.equals(result)) {
-                result = ts.transform(getCommandTransformParam(), DEFAULT_COMMAND_TRANSFORM);
-            }
-        } else {
-            Map<String, String> map = getCommandMap();
-            if (map != null) {
-                String value = map.get(key);
-                if (value != null) {
-                    result = value;
-                } else { // Attempt to provide a default Mapping for it.
-                    if (map.containsKey(key)) {
-                        result = COMMAND_DEFAULTS.get(key);
-                    } else {
-                        result = key;
-                    }
-                }
-            } else {
-                result = COMMAND_DEFAULTS.get(key);
-            }
-        }
-
-        return result;
-    }
-
-    @Override
-    public void validateItemType(Item item) throws BindingConfigParseException {
-        Class<? extends Item> t = getItemType();
-
-        // Add support for Color Device Items.
-        if (!(t == ColorItem.class)) {
-            super.validateItemType(item);
-        }
-    }
+		return result;
+	}
 }

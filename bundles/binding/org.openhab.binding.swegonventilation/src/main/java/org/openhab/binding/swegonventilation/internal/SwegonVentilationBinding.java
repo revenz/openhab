@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2016, openHAB.org and others.
+ * Copyright (c) 2010-2015, openHAB.org and others.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -38,228 +38,229 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- *
+ * 
  * Binding to receive data from Swegon ventilation system.
- *
+ * 
  * @author Pauli Anttila
  * @since 1.4.0
  */
-public class SwegonVentilationBinding extends AbstractBinding<SwegonVentilationBindingProvider>
-        implements ManagedService {
+public class SwegonVentilationBinding extends
+		AbstractBinding<SwegonVentilationBindingProvider> implements
+		ManagedService {
 
-    private static final Logger logger = LoggerFactory.getLogger(SwegonVentilationBinding.class);
+	private static final Logger logger = LoggerFactory
+			.getLogger(SwegonVentilationBinding.class);
 
-    /* configuration variables for communication */
-    private int udpPort = 9998;
-    private String serialPort = null;
-    private boolean simulator = false;
+	/* configuration variables for communication */
+	private int udpPort = 9998;
+	private String serialPort = null;
+	private boolean simulator = false;
 
-    /** Thread to handle messages from heat pump */
-    private MessageListener messageListener = null;
+	/** Thread to handle messages from heat pump */
+	private MessageListener messageListener = null;
 
-    public SwegonVentilationBinding() {
-    }
+	public SwegonVentilationBinding() {
+	}
 
-    @Override
-    public void activate() {
-        logger.debug("Activate");
-    }
+	public void activate() {
+		logger.debug("Activate");
+	}
 
-    @Override
-    public void deactivate() {
-        logger.debug("Deactivate");
+	public void deactivate() {
+		logger.debug("Deactivate");
+		
+		if (messageListener != null) {
+			messageListener.setInterrupted(true);
+		}
+	}
 
-        if (messageListener != null) {
-            messageListener.setInterrupted(true);
-        }
-    }
+	public void setEventPublisher(EventPublisher eventPublisher) {
+		this.eventPublisher = eventPublisher;
+	}
 
-    @Override
-    public void setEventPublisher(EventPublisher eventPublisher) {
-        this.eventPublisher = eventPublisher;
-    }
+	public void unsetEventPublisher(EventPublisher eventPublisher) {
+		this.eventPublisher = null;
+	}
 
-    @Override
-    public void unsetEventPublisher(EventPublisher eventPublisher) {
-        this.eventPublisher = null;
-    }
+	/**
+	 * @{inheritDoc
+	 */
+	@Override
+	public void updated(Dictionary<String, ?> config)
+			throws ConfigurationException {
 
-    protected void addBindingProvider(SwegonVentilationBindingProvider bindingProvider) {
-        super.addBindingProvider(bindingProvider);
-    }
+		logger.debug("Configuration updated, config {}", config != null ? true
+				: false);
 
-    protected void removeBindingProvider(SwegonVentilationBindingProvider bindingProvider) {
-        super.removeBindingProvider(bindingProvider);
-    }
+		if (config != null) {
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void updated(Dictionary<String, ?> config) throws ConfigurationException {
+			String portString = (String) config.get("udpPort");
+			if (StringUtils.isNotBlank(portString)) {
+				udpPort = Integer.parseInt(portString);
+			}
 
-        logger.debug("Configuration updated, config {}", config != null ? true : false);
+			serialPort = (String) config.get("serialPort");
 
-        if (config != null) {
+			String simulateString = (String) config.get("simulate");
+			if (StringUtils.isNotBlank(simulateString)) {
+				simulator = Boolean.parseBoolean(simulateString);
+			}
+		}
+		
+		if (messageListener != null) {
 
-            String portString = (String) config.get("udpPort");
-            if (StringUtils.isNotBlank(portString)) {
-                udpPort = Integer.parseInt(portString);
-            }
+			logger.debug("Close previous message listener");
 
-            serialPort = (String) config.get("serialPort");
+			messageListener.setInterrupted(true);
+			try {
+				messageListener.join();
+			} catch (InterruptedException e) {
+				logger.info("Previous message listener closing interrupted", e);
+			}
+		}
+		
+		messageListener = new MessageListener();
+		messageListener.start();
 
-            String simulateString = (String) config.get("simulate");
-            if (StringUtils.isNotBlank(simulateString)) {
-                simulator = Boolean.parseBoolean(simulateString);
-            }
-        }
+	}
 
-        if (messageListener != null) {
+	/**
+	 * Convert device value to OpenHAB state.
+	 * 
+	 * @param itemType
+	 * @param value
+	 * 
+	 * @return a {@link State}
+	 */
+	private State convertDeviceValueToOpenHabState(Class<? extends Item> itemType, Integer value) {
+		State state = UnDefType.UNDEF;
 
-            logger.debug("Close previous message listener");
+		try {
+			if (itemType == SwitchItem.class) {
+				state = value == 0 ? OnOffType.OFF : OnOffType.ON;
+				
+			} else if (itemType == NumberItem.class) {
+				state = new DecimalType(value);
+				
+			} 
+		} catch (Exception e) {
+			logger.debug("Cannot convert value '{}' to data type {}", value, itemType);
+		}
+		
+		return state;
+	}
 
-            messageListener.setInterrupted(true);
-            try {
-                messageListener.join();
-            } catch (InterruptedException e) {
-                logger.info("Previous message listener closing interrupted", e);
-            }
-        }
+	/**
+	 * The MessageListener runs as a separate thread.
+	 * 
+	 * Thread listening message from Swegon ventilation system and send updates
+	 * to openHAB bus.
+	 * 
+	 */
+	private class MessageListener extends Thread {
 
-        messageListener = new MessageListener();
-        messageListener.start();
+		private boolean interrupted = false;
 
-    }
+		MessageListener() {
+		}
 
-    /**
-     * Convert device value to OpenHAB state.
-     *
-     * @param itemType
-     * @param value
-     *
-     * @return a {@link State}
-     */
-    private State convertDeviceValueToOpenHabState(Class<? extends Item> itemType, Integer value) {
-        State state = UnDefType.UNDEF;
+		public void setInterrupted(boolean interrupted) {
+			this.interrupted = interrupted;
+			this.interrupt();
+		}
 
-        try {
-            if (itemType == SwitchItem.class) {
-                state = value == 0 ? OnOffType.OFF : OnOffType.ON;
+		@Override
+		public void run() {
 
-            } else if (itemType == NumberItem.class) {
-                state = new DecimalType(value);
+			logger.debug("Swegon ventilation system message listener started");
 
-            }
-        } catch (Exception e) {
-            logger.debug("Cannot convert value '{}' to data type {}", value, itemType);
-        }
+			SwegonVentilationConnector connector;
 
-        return state;
-    }
+			if (simulator == true)
+				connector = new SwegonVentilationSimulator();
+			else if (serialPort != null)
+				connector = new SwegonVentilationSerialConnector(serialPort);
+			else
+				connector = new SwegonVentilationUDPConnector(udpPort);
 
-    /**
-     * The MessageListener runs as a separate thread.
-     *
-     * Thread listening message from Swegon ventilation system and send updates
-     * to openHAB bus.
-     *
-     */
-    private class MessageListener extends Thread {
+			try {
+				connector.connect();
+			} catch (SwegonVentilationException e) {
+				logger.error(
+						"Error occured when connecting to Swegon ventilation system",
+						e);
 
-        private boolean interrupted = false;
+				logger.warn("Closing Swegon ventilation system message listener");
+				
+				// exit
+				interrupted = true;
+			}
 
-        MessageListener() {
-        }
+			// as long as no interrupt is requested, continue running
+			while (!interrupted) {
 
-        public void setInterrupted(boolean interrupted) {
-            this.interrupted = interrupted;
-            this.interrupt();
-        }
+				try {
+					// Wait a packet (blocking)
+					byte[] data = connector.receiveDatagram();
 
-        @Override
-        public void run() {
+					logger.trace("Received data (len={}): {}", data.length,
+							DatatypeConverter.printHexBinary(data));
 
-            logger.debug("Swegon ventilation system message listener started");
+					HashMap<SwegonVentilationCommandType, Integer> regValues = SwegonVentilationDataParser
+							.parseData(data);
 
-            SwegonVentilationConnector connector;
+					if (regValues != null) {
 
-            if (simulator == true) {
-                connector = new SwegonVentilationSimulator();
-            } else if (serialPort != null) {
-                connector = new SwegonVentilationSerialConnector(serialPort);
-            } else {
-                connector = new SwegonVentilationUDPConnector(udpPort);
-            }
+						logger.debug("regValues (len={}): {}",
+								regValues.size(), regValues);
 
-            try {
-                connector.connect();
-            } catch (SwegonVentilationException e) {
-                logger.error("Error occured when connecting to Swegon ventilation system", e);
+						Set<Map.Entry<SwegonVentilationCommandType, Integer>> set = regValues
+								.entrySet();
 
-                logger.warn("Closing Swegon ventilation system message listener");
+						for (Entry<SwegonVentilationCommandType, Integer> val : set) {
 
-                // exit
-                interrupted = true;
-            }
+							SwegonVentilationCommandType cmdType = val.getKey();
+							Integer value = val.getValue();
 
-            // as long as no interrupt is requested, continue running
-            while (!interrupted) {
+							for (SwegonVentilationBindingProvider provider : providers) {
+								for (String itemName : provider.getItemNames()) {
 
-                try {
-                    // Wait a packet (blocking)
-                    byte[] data = connector.receiveDatagram();
+									SwegonVentilationCommandType commandType = provider
+											.getCommandType(itemName);
 
-                    logger.trace("Received data (len={}): {}", data.length, DatatypeConverter.printHexBinary(data));
+									if (commandType.equals(cmdType)) {
+										Class<? extends Item> itemType = provider.getItemType(itemName);
 
-                    HashMap<SwegonVentilationCommandType, Integer> regValues = SwegonVentilationDataParser
-                            .parseData(data);
+										org.openhab.core.types.State state = convertDeviceValueToOpenHabState(itemType, value);
 
-                    if (regValues != null) {
+										eventPublisher.postUpdate(itemName,
+												state);
+									}
+								}
+							}
 
-                        logger.debug("regValues (len={}): {}", regValues.size(), regValues);
+						}
 
-                        Set<Map.Entry<SwegonVentilationCommandType, Integer>> set = regValues.entrySet();
+					}
 
-                        for (Entry<SwegonVentilationCommandType, Integer> val : set) {
+				} catch (SwegonVentilationException e) {
 
-                            SwegonVentilationCommandType cmdType = val.getKey();
-                            Integer value = val.getValue();
+					logger.error(
+							"Error occured when received data from Swegon ventilation system",
+							e);
+				}
+			}
 
-                            for (SwegonVentilationBindingProvider provider : providers) {
-                                for (String itemName : provider.getItemNames()) {
+			try {
+				connector.disconnect();
+			} catch (SwegonVentilationException e) {
+				logger.error(
+						"Error occured when disconnecting form Swegon ventilation system",
+						e);
+			}
 
-                                    SwegonVentilationCommandType commandType = provider.getCommandType(itemName);
+		}
 
-                                    if (commandType.equals(cmdType)) {
-                                        Class<? extends Item> itemType = provider.getItemType(itemName);
-
-                                        org.openhab.core.types.State state = convertDeviceValueToOpenHabState(itemType,
-                                                value);
-
-                                        eventPublisher.postUpdate(itemName, state);
-                                    }
-                                }
-                            }
-
-                        }
-
-                    }
-
-                } catch (SwegonVentilationException e) {
-
-                    logger.error("Error occured when received data from Swegon ventilation system", e);
-                }
-            }
-
-            try {
-                connector.disconnect();
-            } catch (SwegonVentilationException e) {
-                logger.error("Error occured when disconnecting form Swegon ventilation system", e);
-            }
-
-        }
-
-    }
+	}
 
 }

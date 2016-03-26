@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2016, openHAB.org and others.
+ * Copyright (c) 2010-2015, openHAB.org and others.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -27,21 +27,15 @@ public class ResponseTypeHelper {
 	}
 
 	protected List<MediaType> getAcceptedMediaTypes(HttpServletRequest request) {
-		// TODO: these are not the headers, there are query params inside
-		final String acceptHeader = request.getHeader(HttpHeaders.ACCEPT);
-		if (acceptHeader != null) {
-			String[] acceptableMediaTypes = acceptHeader.split(",");
-			List<MediaType> mediaTypes = new ArrayList<MediaType>(acceptableMediaTypes.length);
-			for(String type : acceptableMediaTypes) {
-				MediaType mediaType = MediaType.valueOf(type.trim());
-				if(mediaType!=null) {
-					mediaTypes.add(mediaType);
-				}
+		String[] acceptableMediaTypes = request.getHeader(HttpHeaders.ACCEPT).split(",");
+		List<MediaType> mediaTypes = new ArrayList<MediaType>(acceptableMediaTypes.length);
+		for(String type : acceptableMediaTypes) {
+			MediaType mediaType = MediaType.valueOf(type.trim());
+			if(mediaType!=null) {
+				mediaTypes.add(mediaType);
 			}
-			return mediaTypes;
-		} else {
-			return new ArrayList<MediaType>();
 		}
+		return mediaTypes;
 	}
 
 	public String getQueryParam(HttpServletRequest request, String paramName) {
@@ -68,14 +62,12 @@ public class ResponseTypeHelper {
 	 * @return boolean
 	 */
 	public static boolean isStreamingTransport(HttpServletRequest request) {
-		final String transport = request.getHeader(HeaderConfig.X_ATMOSPHERE_TRANSPORT);
-		final String upgrade = request.getHeader(HeaderConfig.WEBSOCKET_UPGRADE);
-		if (HeaderConfig.WEBSOCKET_TRANSPORT.equalsIgnoreCase(transport)
-				|| HeaderConfig.STREAMING_TRANSPORT.equalsIgnoreCase(transport)
-				|| HeaderConfig.WEBSOCKET_TRANSPORT.equalsIgnoreCase(upgrade)) {
-			return true;
+        String transport = request.getHeader(HeaderConfig.X_ATMOSPHERE_TRANSPORT);
+		String upgrade = request.getHeader(HeaderConfig.WEBSOCKET_UPGRADE);
+		if(HeaderConfig.WEBSOCKET_TRANSPORT.equalsIgnoreCase(transport) || HeaderConfig.STREAMING_TRANSPORT.equalsIgnoreCase(transport) || HeaderConfig.WEBSOCKET_TRANSPORT.equalsIgnoreCase(upgrade)) {
+		        return true;
 		} else {
-			return false;
+		        return false;
 		}
 	}
 

@@ -120,9 +120,11 @@ public abstract class imperiHabBindingBase extends AbstractActiveBinding<imperiH
 		imperiHabAlarmController.AlarmState_Number = getConfigStringValue(configuration, "alarmStateNumber", "Alarm_State");
 		imperiHabAlarmController.Group_AlarmAway = getConfigStringValue(configuration, "alarmAwayGroup", "AlarmAway");
 		imperiHabAlarmController.Group_AlarmHome = getConfigStringValue(configuration, "alarmHomeGroup", "AlarmHome");
-		
+		imperiHabAlarmController.AlarmLastTrippedItem = getConfigStringValue(configuration, "alarmLastTrippedItem", "Alarm_Last_Tripped_Item");
 		imperiHabAlarmController.ArmingCountdown  = getConfigIntValue(configuration, "armingCountdown", 45, 1, 600);
+		
 		imperiHabAlarmController.IntrusionCountdown  = getConfigIntValue(configuration, "intrusionCountdown", 30, 1, 600);
+		imperiHabGenericBindingProvider.DEFAULT_TEMPERATURE_UNIT = getConfigStringValue(configuration, "tempunit", "C");
 
 		log("imperiHabAlarmPanel.slideShowDir: " + imperiHabAlarmPanel.slideShowDir);
 		log("imperiHabAlarmController.CODE_MASTER: " + imperiHabAlarmController.CODE_MASTER);

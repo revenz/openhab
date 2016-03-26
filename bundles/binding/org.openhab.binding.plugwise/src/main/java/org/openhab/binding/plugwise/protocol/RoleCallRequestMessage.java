@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2016, openHAB.org and others.
+ * Copyright (c) 2010-2015, openHAB.org and others.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -17,31 +17,30 @@ package org.openhab.binding.plugwise.protocol;
  */
 public class RoleCallRequestMessage extends Message {
 
-    private int nodeID;
+	private int nodeID;
+	
+	public RoleCallRequestMessage(String MAC, int nodeID) {
+		super(MAC, "");
+		this.nodeID = nodeID;
+		type = MessageType.DEVICE_ROLECALL_REQUEST;
+	}
 
-    public RoleCallRequestMessage(String MAC, int nodeID) {
-        super(MAC, "");
-        this.nodeID = nodeID;
-        type = MessageType.DEVICE_ROLECALL_REQUEST;
-    }
+	@Override
+	protected String payLoadToHexString() {
+		return String.format("%02X", nodeID);
+	}
 
-    @Override
-    protected String payLoadToHexString() {
-        return String.format("%02X", nodeID);
-    }
+	@Override
+	protected void parsePayLoad() {		
+	}
 
-    @Override
-    protected void parsePayLoad() {
-    }
-
-    @Override
-    public String getPayLoad() {
-        return String.format("%02X", nodeID);
-    }
-
-    @Override
-    protected String sequenceNumberToHexString() {
-        return "";
-    }
-
+	@Override
+	public String getPayLoad() {	
+		return String.format("%02X", nodeID);
+	}
+	
+	protected String sequenceNumberToHexString() {
+		return "";
+	}
+	
 }

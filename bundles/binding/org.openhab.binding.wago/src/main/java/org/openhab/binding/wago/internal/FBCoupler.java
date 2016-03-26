@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2016, openHAB.org and others.
+ * Copyright (c) 2010-2015, openHAB.org and others.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -14,19 +14,9 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.net.UnknownHostException;
 import java.util.Collection;
-
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 
-import org.openhab.binding.wago.internal.WagoGenericBindingProvider.WagoBindingConfig;
-import org.openhab.core.library.types.DecimalType;
-import org.openhab.core.library.types.IncreaseDecreaseType;
-import org.openhab.core.library.types.OnOffType;
-import org.openhab.core.library.types.OpenClosedType;
-import org.openhab.core.library.types.UpDownType;
-import org.openhab.core.types.Command;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
@@ -44,379 +34,395 @@ import net.wimpi.modbus.net.TCPMasterConnection;
 import net.wimpi.modbus.procimg.Register;
 import net.wimpi.modbus.procimg.SimpleRegister;
 
+import org.openhab.binding.wago.internal.WagoGenericBindingProvider.WagoBindingConfig;
+import org.openhab.core.library.types.DecimalType;
+import org.openhab.core.library.types.IncreaseDecreaseType;
+import org.openhab.core.library.types.OnOffType;
+import org.openhab.core.library.types.OpenClosedType;
+import org.openhab.core.library.types.UpDownType;
+import org.openhab.core.types.Command;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  * This class represents the wago-field-bus-coupler with all of its modules and
  * configurations.
- *
+ * 
  * @author Kaltofen
  * @since 1.7.0
  */
 public class FBCoupler {
+	
+	private static final Logger logger = LoggerFactory.getLogger(FBCoupler.class);
+	
+	final int DIStart = 0; // Start of the input-coils
+	final int DOStart = 512; // Start of the output-coils
+	final int IRStart = 0; // Start of the input-registers
+	final int ORStart = 512; // Start of the output-registers
 
-    private static final Logger logger = LoggerFactory.getLogger(FBCoupler.class);
+	String name;
 
-    final int DIStart = 0; // Start of the input-coils
-    final int DOStart = 512; // Start of the output-coils
-    final int IRStart = 0; // Start of the input-registers
-    final int ORStart = 512; // Start of the output-registers
+	TCPMasterConnection connection;
+	ModbusTCPTransaction transaction;
 
-    String name;
+	String ip;
+	int modbusPort = 502;
+	int ftpPort = 21;
+	String username = "user";
+	String password = "user";
 
-    TCPMasterConnection connection;
-    ModbusTCPTransaction transaction;
+	Module modules[];
 
-    String ip;
-    int modbusPort = 502;
-    int ftpPort = 21;
-    String username = "user";
-    String password = "user";
+	public void setIp(String ip) {
+		this.ip = ip;
+	}
 
-    Module modules[];
+	public void setModbus(int port) {
+		modbusPort = port;
+	}
 
-    public void setIp(String ip) {
-        this.ip = ip;
-    }
+	public void setFTP(int port) {
+		ftpPort = port;
+	}
 
-    public void setModbus(int port) {
-        modbusPort = port;
-    }
+	public void setUsername(String username) {
+		this.username = username;
+	}
 
-    public void setFTP(int port) {
-        ftpPort = port;
-    }
+	public void setPassword(String password) {
+		this.password = password;
+	}
 
-    public void setUsername(String username) {
-        this.username = username;
-    }
+	public void setup() {
+		try {
+			URL url = new URL("ftp://" + username + ":" + password + "@" + ip
+					+ ":" + ftpPort + "/etc/EA-config.xml;type=i");
+			URLConnection urlc = url.openConnection();
+			InputStream is = urlc.getInputStream();
 
-    public void setPassword(String password) {
-        this.password = password;
-    }
+			DocumentBuilderFactory dbFactory = DocumentBuilderFactory
+					.newInstance();
+			DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+			Document doc = dBuilder.parse(is);
+			doc.getDocumentElement().normalize();
 
-    public void setup() {
-        try {
-            URL url = new URL(
-                    "ftp://" + username + ":" + password + "@" + ip + ":" + ftpPort + "/etc/EA-config.xml;type=i");
-            URLConnection urlc = url.openConnection();
-            InputStream is = urlc.getInputStream();
+			NodeList moduleList = doc.getElementsByTagName("Module");
 
-            DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
-            DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
-            Document doc = dBuilder.parse(is);
-            doc.getDocumentElement().normalize();
+			modules = new Module[moduleList.getLength()];
+			for (int i = 0; i < moduleList.getLength(); i++) {
+				Node moduleXML = moduleList.item(i);
+				NamedNodeMap attributes = moduleXML.getAttributes();
 
-            NodeList moduleList = doc.getElementsByTagName("Module");
+				String article = attributes.getNamedItem("ARTIKELNR")
+						.getNodeValue();
+				String type = attributes.getNamedItem("MODULETYPE")
+						.getNodeValue();
+				int channelcount = Integer.parseInt(attributes.getNamedItem(
+						"CHANNELCOUNT").getNodeValue());
 
-            modules = new Module[moduleList.getLength()];
-            for (int i = 0; i < moduleList.getLength(); i++) {
-                Node moduleXML = moduleList.item(i);
-                NamedNodeMap attributes = moduleXML.getAttributes();
+				// int DIOffset = DIStart;
+				int DOOffset = DOStart;
+				// int IROffset = IRStart;
+				int OROffset = ORStart;
+				if (type.equals("DO")) {
+					modules[i] = new DOModule(article, DOOffset, channelcount);
+					DOOffset += channelcount;
+				} else if (type.equals("COMPLEX")) {
+					if (article.equals("750-511/000-000")) { // PWM-Module
+						modules[i] = new PWMModule(article, OROffset);
+						OROffset += 4; // 4 registers for 2 outputs
+					}
+				}
+			}
+		} catch (Exception e) {
+			logger.warn("wago-coupler setup failed.");
+		}
+	}
 
-                String article = attributes.getNamedItem("ARTIKELNR").getNodeValue();
-                String type = attributes.getNamedItem("MODULETYPE").getNodeValue();
-                int channelcount = Integer.parseInt(attributes.getNamedItem("CHANNELCOUNT").getNodeValue());
+	public boolean connect() {
+		try {
+			if (connection == null) {
+				connection = new TCPMasterConnection(InetAddress.getByName(ip));
+			}
+		} catch (UnknownHostException e) {
+			logger.warn("unable to connect to wago-coupler.");
+			return false;
+		}
 
-                // int DIOffset = DIStart;
-                int DOOffset = DOStart;
-                // int IROffset = IRStart;
-                int OROffset = ORStart;
-                if (type.equals("DO")) {
-                    modules[i] = new DOModule(article, DOOffset, channelcount);
-                    DOOffset += channelcount;
-                } else if (type.equals("COMPLEX")) {
-                    if (article.equals("750-511/000-000")) { // PWM-Module
-                        modules[i] = new PWMModule(article, OROffset);
-                        OROffset += 4; // 4 registers for 2 outputs
-                    }
-                }
-            }
-        } catch (Exception e) {
-            logger.warn("wago-coupler setup failed.");
-        }
-    }
+		if (!connection.isConnected()) {
+			try {
+				connection.setPort(modbusPort);
+				connection.connect();
+				if (transaction == null)
+					transaction = new ModbusTCPTransaction();
+				transaction.setConnection(connection);
+				transaction.setReconnecting(false);
+			} catch (Exception e) {
+				logger.warn("unable to connect to wago-coupler: "
+						+ e.getMessage());
+				return false;
+			}
+		}
+		return true;
+	}
 
-    public boolean connect() {
-        try {
-            if (connection == null) {
-                connection = new TCPMasterConnection(InetAddress.getByName(ip));
-            }
-        } catch (UnknownHostException e) {
-            logger.warn("unable to connect to wago-coupler.");
-            return false;
-        }
+	public FBCoupler(String name) {
+		this.name = name;
+	}
 
-        if (!connection.isConnected()) {
-            try {
-                connection.setPort(modbusPort);
-                connection.connect();
-                if (transaction == null) {
-                    transaction = new ModbusTCPTransaction();
-                }
-                transaction.setConnection(connection);
-                transaction.setReconnecting(false);
-            } catch (Exception e) {
-                logger.warn("unable to connect to wago-coupler: " + e.getMessage());
-                return false;
-            }
-        }
-        return true;
-    }
+	public void executeCommand(Command command, WagoBindingConfig conf) {
+		Module module = modules[conf.module];
+		if (module != null) {
+			module.executeCommand(command, conf.channel);
+		} else {
+			logger.warn("module " + module + " wasn't correctly initialized.");
+		}
+	}
 
-    public FBCoupler(String name) {
-        this.name = name;
-    }
+	public void update(WagoBinding binding) {
+		int i = 0;
+		for (Module module : modules) {
+			if (module != null) {
+				module.update(binding, name, i);
+			}
+			i++;
+		}
+	}
 
-    public void executeCommand(Command command, WagoBindingConfig conf) {
-        Module module = modules[conf.module];
-        if (module != null) {
-            module.executeCommand(command, conf.channel);
-        } else {
-            logger.warn("module " + module + " wasn't correctly initialized.");
-        }
-    }
+	class Module {
+		String article;
+		String type;
+		int offset;
+		int chancount;
 
-    public void update(WagoBinding binding) {
-        int i = 0;
-        for (Module module : modules) {
-            if (module != null) {
-                module.update(binding, name, i);
-            }
-            i++;
-        }
-    }
+		public String getArticle() {
+			return article;
+		}
 
-    class Module {
-        String article;
-        String type;
-        int offset;
-        int chancount;
+		public String getType() {
+			return type;
+		}
 
-        public String getArticle() {
-            return article;
-        }
+		public int getChannelcount() {
+			return chancount;
+		}
 
-        public String getType() {
-            return type;
-        }
+		public void update(WagoBinding binding, String couplerName, int module) {
+		}
 
-        public int getChannelcount() {
-            return chancount;
-        }
+		public void executeCommand(Command command, int channel) {
+		}
 
-        public void update(WagoBinding binding, String couplerName, int module) {
-        }
+		Module(String article, String type, int offset, int chancount) {
+			this.article = article;
+			this.type = type;
+			this.offset = offset;
+			this.chancount = chancount;
+		}
+	}
 
-        public void executeCommand(Command command, int channel) {
-        }
+	class DOModule extends Module {
+		boolean state[];
 
-        Module(String article, String type, int offset, int chancount) {
-            this.article = article;
-            this.type = type;
-            this.offset = offset;
-            this.chancount = chancount;
-        }
-    }
+		DOModule(String article, int offset, int chancount) {
+			super(article, "DO", offset, chancount);
+			state = new boolean[chancount];
+		}
 
-    class DOModule extends Module {
-        boolean state[];
+		public void update(WagoBinding binding, String couplerName, int module) {
+			if (!connect()) {
+				logger.warn("coupler not connected.");
+				return;
+			}
 
-        DOModule(String article, int offset, int chancount) {
-            super(article, "DO", offset, chancount);
-            state = new boolean[chancount];
-        }
+			ModbusRequest request = new ReadCoilsRequest(offset, chancount);
+			transaction.setRequest(request);
+			try {
+				transaction.execute();
+			} catch (Exception e) {
+				logger.debug("update of channels failed: " + e.getMessage());
+				return;
+			}
 
-        @Override
-        public void update(WagoBinding binding, String couplerName, int module) {
-            if (!connect()) {
-                logger.warn("coupler not connected.");
-                return;
-            }
+			ReadCoilsResponse response = (ReadCoilsResponse) transaction
+					.getResponse();
+			if ((response.getTransactionID() != transaction.getTransactionID())
+					&& !response.isHeadless()) {
+				logger.debug("update of channels failed: invalid response.");
+				return;
+			}
 
-            ModbusRequest request = new ReadCoilsRequest(offset, chancount);
-            transaction.setRequest(request);
-            try {
-                transaction.execute();
-            } catch (Exception e) {
-                logger.debug("update of channels failed: " + e.getMessage());
-                return;
-            }
+			for (int i = 0; i < chancount; i++) {
+				state[i] = response.getCoils().getBit(i);
+			}
 
-            ReadCoilsResponse response = (ReadCoilsResponse) transaction.getResponse();
-            if ((response.getTransactionID() != transaction.getTransactionID()) && !response.isHeadless()) {
-                logger.debug("update of channels failed: invalid response.");
-                return;
-            }
+			Collection<String> itemNames = binding.getItemNames();
+			for (String itemName : itemNames) {
+				binding.updateItem(itemName, couplerName, module, state);
+			}
+		}
 
-            for (int i = 0; i < chancount; i++) {
-                state[i] = response.getCoils().getBit(i);
-            }
+		private boolean translateCommand2Boolean(Command command) {
+			if (command.equals(OnOffType.ON))
+				return true;
+			if (command.equals(OnOffType.OFF))
+				return false;
+			if (command.equals(OpenClosedType.OPEN))
+				return true;
+			if (command.equals(OpenClosedType.CLOSED))
+				return false;
+			throw new IllegalArgumentException("command not supported");
+		}
 
-            Collection<String> itemNames = binding.getItemNames();
-            for (String itemName : itemNames) {
-                binding.updateItem(itemName, couplerName, module, state);
-            }
-        }
+		public void executeCommand(Command command, int channel) {
+			if (!connect()) {
+				logger.warn("coupler not connected.");
+				return;
+			}
 
-        private boolean translateCommand2Boolean(Command command) {
-            if (command.equals(OnOffType.ON)) {
-                return true;
-            }
-            if (command.equals(OnOffType.OFF)) {
-                return false;
-            }
-            if (command.equals(OpenClosedType.OPEN)) {
-                return true;
-            }
-            if (command.equals(OpenClosedType.CLOSED)) {
-                return false;
-            }
-            throw new IllegalArgumentException("command not supported");
-        }
+			try {
+				if (translateCommand2Boolean(command)) {
+					switchON(channel);
+				} else {
+					switchOFF(channel);
+				}
 
-        @Override
-        public void executeCommand(Command command, int channel) {
-            if (!connect()) {
-                logger.warn("coupler not connected.");
-                return;
-            }
+			} catch (IllegalArgumentException e) {
+				e.printStackTrace();
+			}
+		}
 
-            try {
-                if (translateCommand2Boolean(command)) {
-                    switchON(channel);
-                } else {
-                    switchOFF(channel);
-                }
+		private void setCoil(int channel, boolean state) {
+			ModbusRequest request = new WriteCoilRequest(offset + channel,
+					state);
+			transaction.setRequest(request);
+			try {
+				transaction.execute();
+			} catch (Exception e) {
+				logger.debug("can't set channel " + channel
+						+ " of digital output.");
+				return;
+			}
+		}
 
-            } catch (IllegalArgumentException e) {
-                e.printStackTrace();
-            }
-        }
+		private void switchON(int channel) {
+			if (state[channel] != true) {
+				setCoil(channel, true);
+				state[channel] = true;
+				logger.debug("switching channel " + channel + " on.");
+			}
+		}
 
-        private void setCoil(int channel, boolean state) {
-            ModbusRequest request = new WriteCoilRequest(offset + channel, state);
-            transaction.setRequest(request);
-            try {
-                transaction.execute();
-            } catch (Exception e) {
-                logger.debug("can't set channel " + channel + " of digital output.");
-                return;
-            }
-        }
+		private void switchOFF(int channel) {
+			if (state[channel] != false) {
+				setCoil(channel, false);
+				state[channel] = false;
+				logger.debug("switching channel " + channel + " off.");
+			}
+		}
 
-        private void switchON(int channel) {
-            if (state[channel] != true) {
-                setCoil(channel, true);
-                state[channel] = true;
-                logger.debug("switching channel " + channel + " on.");
-            }
-        }
+		public boolean getState(int channel) {
+			return state[channel];
+		}
+	}
 
-        private void switchOFF(int channel) {
-            if (state[channel] != false) {
-                setCoil(channel, false);
-                state[channel] = false;
-                logger.debug("switching channel " + channel + " off.");
-            }
-        }
+	class PWMModule extends Module {
+		int values[];
 
-        public boolean getState(int channel) {
-            return state[channel];
-        }
-    }
+		public PWMModule(String article, int offset) {
+			super(article, "COMPLEX", offset, 2);
+			values = new int[2];
+		}
 
-    class PWMModule extends Module {
-        int values[];
+		public void update(WagoBinding binding, String couplerName, int module) {
+			if (!connect()) {
+				logger.warn("coupler not connected.");
+				return;
+			}
 
-        public PWMModule(String article, int offset) {
-            super(article, "COMPLEX", offset, 2);
-            values = new int[2];
-        }
+			ModbusRequest request = new ReadMultipleRegistersRequest(offset, 4);
+			transaction.setRequest(request);
+			try {
+				transaction.execute();
+			} catch (Exception e) {
+				logger.debug("update of channels failed: " + e.getMessage());
+				return;
+			}
 
-        @Override
-        public void update(WagoBinding binding, String couplerName, int module) {
-            if (!connect()) {
-                logger.warn("coupler not connected.");
-                return;
-            }
+			ReadMultipleRegistersResponse response = (ReadMultipleRegistersResponse) transaction
+					.getResponse();
+			if ((response.getTransactionID() != transaction.getTransactionID())
+					&& !response.isHeadless()) {
+				logger.debug("update of channels failed: invalid response.");
+				return;
+			}
 
-            ModbusRequest request = new ReadMultipleRegistersRequest(offset, 4);
-            transaction.setRequest(request);
-            try {
-                transaction.execute();
-            } catch (Exception e) {
-                logger.debug("update of channels failed: " + e.getMessage());
-                return;
-            }
+			values[0] = response.getRegister(1).getValue() >> 4;
+			values[1] = response.getRegister(3).getValue() >> 4;
 
-            ReadMultipleRegistersResponse response = (ReadMultipleRegistersResponse) transaction.getResponse();
-            if ((response.getTransactionID() != transaction.getTransactionID()) && !response.isHeadless()) {
-                logger.debug("update of channels failed: invalid response.");
-                return;
-            }
+			Collection<String> itemNames = binding.getItemNames();
+			for (String itemName : itemNames) {
+				binding.updateItemPWM(itemName, couplerName, module, values);
+			}
+		}
 
-            values[0] = response.getRegister(1).getValue() >> 4;
-            values[1] = response.getRegister(3).getValue() >> 4;
+		public void executeCommand(Command command, int channel) {
+			if (!connect()) {
+				logger.warn("coupler not connected.");
+				return;
+			}
 
-            Collection<String> itemNames = binding.getItemNames();
-            for (String itemName : itemNames) {
-                binding.updateItemPWM(itemName, couplerName, module, values);
-            }
-        }
+			if (command instanceof IncreaseDecreaseType
+					|| command instanceof UpDownType) {
+				int value = (int) ((float) values[channel] / 1023 * 100);
+				if (command.equals(command
+						.equals(IncreaseDecreaseType.INCREASE))
+						|| command.equals(UpDownType.UP)) {
+					value += 1;
+				} else if (command.equals(IncreaseDecreaseType.DECREASE)
+						|| command.equals(UpDownType.DOWN)) {
+					value -= 1;
+				}
+				value = (int) ((float) value / 100 * 1023);
+				if (value > 1023)
+					value = 1023;
+				else if (value < 0)
+					value = 0;
 
-        @Override
-        public void executeCommand(Command command, int channel) {
-            if (!connect()) {
-                logger.warn("coupler not connected.");
-                return;
-            }
+				setValue(channel, value);
+			} else if (command instanceof OnOffType) {
+				if (command.equals(OnOffType.ON)) {
+					setValue(channel, 1023);
+				} else if (command.equals(OnOffType.OFF)) {
+					setValue(channel, 0);
+				}
+			} else if (command instanceof DecimalType) {
+				DecimalType percentage = (DecimalType) command;
+				int value = (int) ((float) percentage.intValue() / 100 * 1023);
+				setValue(channel, value);
+			}
+		}
 
-            if (command instanceof IncreaseDecreaseType || command instanceof UpDownType) {
-                int value = (int) ((float) values[channel] / 1023 * 100);
-                if (command.equals(command.equals(IncreaseDecreaseType.INCREASE)) || command.equals(UpDownType.UP)) {
-                    value += 1;
-                } else if (command.equals(IncreaseDecreaseType.DECREASE) || command.equals(UpDownType.DOWN)) {
-                    value -= 1;
-                }
-                value = (int) ((float) value / 100 * 1023);
-                if (value > 1023) {
-                    value = 1023;
-                } else if (value < 0) {
-                    value = 0;
-                }
+		public void setValue(int channel, int value) {
+			values[channel] = value;
 
-                setValue(channel, value);
-            } else if (command instanceof OnOffType) {
-                if (command.equals(OnOffType.ON)) {
-                    setValue(channel, 1023);
-                } else if (command.equals(OnOffType.OFF)) {
-                    setValue(channel, 0);
-                }
-            } else if (command instanceof DecimalType) {
-                DecimalType percentage = (DecimalType) command;
-                int value = (int) ((float) percentage.intValue() / 100 * 1023);
-                setValue(channel, value);
-            }
-        }
+			Register reg[] = new SimpleRegister[2];
+			reg[0] = new SimpleRegister(0); // Must be set to 0
+			reg[1] = new SimpleRegister(value << 4);// << 20); // 4 + 16 = 20
 
-        public void setValue(int channel, int value) {
-            values[channel] = value;
+			ModbusRequest request = new WriteMultipleRegistersRequest(offset
+					+ channel * 2, reg);
+			transaction.setRequest(request);
+			try {
+				transaction.execute();
+			} catch (Exception e) {
+				logger.debug("can't set channel " + channel + " of PWM module.");
+				return;
+			}
+		}
 
-            Register reg[] = new SimpleRegister[2];
-            reg[0] = new SimpleRegister(0); // Must be set to 0
-            reg[1] = new SimpleRegister(value << 4);// << 20); // 4 + 16 = 20
-
-            ModbusRequest request = new WriteMultipleRegistersRequest(offset + channel * 2, reg);
-            transaction.setRequest(request);
-            try {
-                transaction.execute();
-            } catch (Exception e) {
-                logger.debug("can't set channel " + channel + " of PWM module.");
-                return;
-            }
-        }
-
-        public int getValue(int channel) {
-            return values[channel];
-        }
-    }
+		public int getValue(int channel) {
+			return values[channel];
+		}
+	}
 }

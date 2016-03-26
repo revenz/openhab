@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2016, openHAB.org and others.
+ * Copyright (c) 2010-2015, openHAB.org and others.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -31,199 +31,191 @@ import org.slf4j.LoggerFactory;
 
 /**
  * An active binding which requests a given URL frequently.
- *
+ * 
  * @author Holger Hees
  * @since 1.3.0
  */
-public class ComfoAirBinding extends AbstractActiveBinding<ComfoAirBindingProvider>implements ManagedService {
+public class ComfoAirBinding extends AbstractActiveBinding<ComfoAirBindingProvider> implements ManagedService {
 
-    static final Logger logger = LoggerFactory.getLogger(ComfoAirBinding.class);
+	static final Logger logger = LoggerFactory.getLogger(ComfoAirBinding.class);
+	
+	/**
+	 * The interval to find new refresh candidates (defaults to 60000
+	 * milliseconds).
+	 */
+	private long refreshInterval = 60000L;
+	private String port;
 
-    /**
-     * The interval to find new refresh candidates (defaults to 60000
-     * milliseconds).
-     */
-    private long refreshInterval = 60000L;
-    private String port;
+	private ComfoAirConnector connector;
+	
+	
+	/**
+	 * @{inheritDoc
+	 */
+	public void activate() {
+	}
 
-    private ComfoAirConnector connector;
+	/**
+	 * @{inheritDoc
+	 */
+	public void deactivate() {
+		for (ComfoAirBindingProvider provider : providers) {
+			provider.removeBindingChangeListener(this);
+		}
 
-    /**
-     * @{inheritDoc
-     */
-    @Override
-    public void activate() {
-    }
+		providers.clear();
 
-    /**
-     * @{inheritDoc
-     */
-    @Override
-    public void deactivate() {
-        for (ComfoAirBindingProvider provider : providers) {
-            provider.removeBindingChangeListener(this);
-        }
+		if (connector != null) {
+			connector.close();
+		}
+	}
+	
+	/**
+	 * @{inheritDoc
+	 */
+	@Override
+	protected long getRefreshInterval() {
+		return refreshInterval;
+	}
 
-        providers.clear();
+	/**
+	 * @{inheritDoc
+	 */
+	@Override
+	protected String getName() {
+		return "ComfoAir Refresh Service";
+	}
 
-        if (connector != null) {
-            connector.close();
-        }
-    }
+	/**
+	 * @{inheritDoc
+	 */
+	@Override
+	public void internalReceiveCommand(String itemName, Command command) {
+		Set<String> usedKeys = new HashSet<String>();
 
-    /**
-     * @{inheritDoc
-     */
-    @Override
-    protected long getRefreshInterval() {
-        return refreshInterval;
-    }
+		for (ComfoAirBindingProvider provider : providers) {
+			usedKeys.addAll(provider.getConfiguredKeys());
+		}
 
-    /**
-     * @{inheritDoc
-     */
-    @Override
-    protected String getName() {
-        return "ComfoAir Refresh Service";
-    }
+		for (ComfoAirBindingProvider provider : providers) {
+			String eventType = provider.getConfiguredKeyForItem(itemName);
+			ComfoAirCommand changeCommand = 
+				ComfoAirCommandType.getChangeCommand(eventType, (DecimalType) command);
 
-    /**
-     * @{inheritDoc
-     */
-    @Override
-    public void internalReceiveCommand(String itemName, Command command) {
-        Set<String> usedKeys = new HashSet<String>();
+			sendCommand(changeCommand);
 
-        for (ComfoAirBindingProvider provider : providers) {
-            usedKeys.addAll(provider.getConfiguredKeys());
-        }
+			Collection<ComfoAirCommand> affectedReadCommands = 
+				ComfoAirCommandType.getAffectedReadCommands(eventType, usedKeys);
 
-        for (ComfoAirBindingProvider provider : providers) {
-            String eventType = provider.getConfiguredKeyForItem(itemName);
-            ComfoAirCommand changeCommand = ComfoAirCommandType.getChangeCommand(eventType, (DecimalType) command);
+			if (affectedReadCommands.size() > 0) {
+				// refresh 3 seconds later all affected items
+				Thread updateThread = new AffectedItemsUpdateThread(affectedReadCommands);
+				updateThread.start();
+			}
+		}
+	}
 
-            sendCommand(changeCommand);
+	/**
+	 * @{inheritDoc
+	 */
+	@Override
+	public void execute() {
+		for (ComfoAirBindingProvider provider : providers) {
+			Collection<ComfoAirCommand> commands = 
+				ComfoAirCommandType.getReadCommandsByEventTypes(provider.getConfiguredKeys());
 
-            Collection<ComfoAirCommand> affectedReadCommands = ComfoAirCommandType.getAffectedReadCommands(eventType,
-                    usedKeys);
+			for (ComfoAirCommand command : commands) {
+				sendCommand(command);
+			}
+		}
+	}
 
-            if (affectedReadCommands.size() > 0) {
-                // refresh 3 seconds later all affected items
-                Thread updateThread = new AffectedItemsUpdateThread(affectedReadCommands);
-                updateThread.start();
-            }
-        }
-    }
+	/**
+	 * send a command and send additional command which are affected by the
+	 * first command
+	 * 
+	 * @param command
+	 */
+	private void sendCommand(ComfoAirCommand command) {
+		
+		int[] response = connector.sendCommand(command);
 
-    /**
-     * @{inheritDoc
-     */
-    @Override
-    public void execute() {
-        for (ComfoAirBindingProvider provider : providers) {
-            Collection<ComfoAirCommand> commands = ComfoAirCommandType
-                    .getReadCommandsByEventTypes(provider.getConfiguredKeys());
+		if (response == null) {
+			return;
+		}
 
-            for (ComfoAirCommand command : commands) {
-                sendCommand(command);
-            }
-        }
-    }
+		List<ComfoAirCommandType> commandTypes = 
+			ComfoAirCommandType.getCommandTypesByReplyCmd(command.getReplyCmd());
 
-    /**
-     * send a command and send additional command which are affected by the
-     * first command
-     *
-     * @param command
-     */
-    private void sendCommand(ComfoAirCommand command) {
+		for (ComfoAirCommandType commandType : commandTypes) {
+			ComfoAirDataType dataType = commandType.getDataType();
+			State value = dataType.convertToState(response, commandType);
 
-        int[] response = connector.sendCommand(command);
+			if (value == null) {
+				logger.error("Unexpected value for DATA: " + ComfoAirConnector.dumpData(response));
+			} else {
+				for (ComfoAirBindingProvider provider : providers) {
+					List<String> items = provider.getItemNamesForCommandKey(commandType.getKey());
+					for (String item : items) {
+						eventPublisher.postUpdate(item, value);
+					}
+				}
+			}
+		}
+	}
 
-        if (response == null) {
-            return;
-        }
+	/**
+	 * {@inheritDoc}
+	 */
+	@SuppressWarnings("rawtypes")
+	public void updated(Dictionary config) throws ConfigurationException {
 
-        List<ComfoAirCommandType> commandTypes = ComfoAirCommandType.getCommandTypesByReplyCmd(command.getReplyCmd());
+		if (config != null) {
+			String newPort = (String) config.get("port"); //$NON-NLS-1$
+			if (StringUtils.isNotBlank(newPort) && !newPort.equals(port)) {
+				// only do something if the newPort has changed
+				port = newPort;
 
-        for (ComfoAirCommandType commandType : commandTypes) {
-            ComfoAirDataType dataType = commandType.getDataType();
-            State value = dataType.convertToState(response, commandType);
+				String refreshIntervalString = (String) config.get("refresh");
+				if (StringUtils.isNotBlank(refreshIntervalString)) {
+					refreshInterval = Long.parseLong(refreshIntervalString);
+				}
 
-            if (value == null) {
-                logger.error("Unexpected value for DATA: " + ComfoAirConnector.dumpData(response));
-            } else {
-                for (ComfoAirBindingProvider provider : providers) {
-                    List<String> items = provider.getItemNamesForCommandKey(commandType.getKey());
-                    for (String item : items) {
-                        eventPublisher.postUpdate(item, value);
-                    }
-                }
-            }
-        }
-    }
+				if (connector != null) {
+					connector.close();
+				}
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @SuppressWarnings("rawtypes")
-    public void updated(Dictionary config) throws ConfigurationException {
+				connector = new ComfoAirConnector();
+				try {
+					connector.open(port);
+				} catch (InitializationException e) {
+					logger.error(e.getMessage());
+				}
 
-        if (config != null) {
-            String newPort = (String) config.get("port"); //$NON-NLS-1$
-            if (StringUtils.isNotBlank(newPort) && !newPort.equals(port)) {
-                // only do something if the newPort has changed
-                port = newPort;
+				setProperlyConfigured(true);
+			}
+		}
+	}
 
-                String refreshIntervalString = (String) config.get("refresh");
-                if (StringUtils.isNotBlank(refreshIntervalString)) {
-                    refreshInterval = Long.parseLong(refreshIntervalString);
-                }
+	
+	private class AffectedItemsUpdateThread extends Thread {
 
-                if (connector != null) {
-                    connector.close();
-                }
+		private Collection<ComfoAirCommand> affectedReadCommands;
 
-                connector = new ComfoAirConnector();
-                try {
-                    connector.open(port);
-                } catch (InitializationException e) {
-                    logger.error(e.getMessage());
-                }
+		public AffectedItemsUpdateThread(Collection<ComfoAirCommand> affectedReadCommands) {
+			this.affectedReadCommands = affectedReadCommands;
+		}
 
-                setProperlyConfigured(true);
-            }
-        }
-    }
-
-    protected void addBindingProvider(ComfoAirBindingProvider bindingProvider) {
-        super.addBindingProvider(bindingProvider);
-    }
-
-    protected void removeBindingProvider(ComfoAirBindingProvider bindingProvider) {
-        super.removeBindingProvider(bindingProvider);
-    }
-
-    private class AffectedItemsUpdateThread extends Thread {
-
-        private Collection<ComfoAirCommand> affectedReadCommands;
-
-        public AffectedItemsUpdateThread(Collection<ComfoAirCommand> affectedReadCommands) {
-            this.affectedReadCommands = affectedReadCommands;
-        }
-
-        @Override
-        public void run() {
-            try {
-                sleep(3000);
-                for (ComfoAirCommand readCommand : this.affectedReadCommands) {
-                    sendCommand(readCommand);
-                }
-            } catch (InterruptedException e) {
-                // nothing to do ...
-            }
-        }
-    }
-
+		public void run() {
+			try {
+				sleep(3000);
+				for (ComfoAirCommand readCommand : this.affectedReadCommands) {
+					sendCommand(readCommand);
+				}
+			} catch (InterruptedException e) {
+				// nothing to do ...
+			}
+		}
+	}
+	
 }
