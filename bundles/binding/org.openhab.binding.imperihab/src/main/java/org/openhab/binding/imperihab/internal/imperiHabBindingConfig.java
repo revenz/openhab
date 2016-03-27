@@ -32,7 +32,7 @@ public class imperiHabBindingConfig implements BindingConfig {
 	boolean pulseable;
 	float minVal;
 	float maxVal;
-	String[] availableModes;
+	String[] options;
 	boolean invert;
 	ArrayList<String> parameters = new ArrayList<String>();		
 	ArrayList<imperiHabBindingConfigChildItem> childItems = new ArrayList<imperiHabBindingConfigChildItem>();

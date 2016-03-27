@@ -23,9 +23,11 @@ import org.openhab.binding.imperihab.imperiHabBindingProvider;
 import org.openhab.core.binding.BindingConfig;
 import org.openhab.core.items.Item;
 import org.openhab.core.library.items.ContactItem;
+import org.openhab.core.library.items.ColorItem;
 import org.openhab.core.library.types.OnOffType;
 import org.openhab.core.library.types.OpenClosedType;
 import org.openhab.core.library.types.PercentType;
+import org.openhab.core.library.types.HSBType;
 import org.openhab.core.types.Command;
 import org.openhab.core.types.State;
 import org.openhab.model.item.binding.AbstractGenericBindingProvider;
@@ -115,7 +117,7 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
 				config.accumulationId = value;
 			else if(key.equalsIgnoreCase("invert"))
 				config.invert = value.equals("1") || value.equalsIgnoreCase("true") || value.equalsIgnoreCase("on");
-			else if(key.equalsIgnoreCase("curmodeid") ||key.equalsIgnoreCase("currentmodeid")){
+			else if(key.equalsIgnoreCase("curmodeid") ||key.equalsIgnoreCase("currentmodeid") || key.equalsIgnoreCase("curvalueid") || key.equalsIgnoreCase("currentvalueid")){
 				config.curmodeId = value;
 				ItemLookups.put(item.getName(), value);
 			}
@@ -131,8 +133,8 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
 				config.minVal = tryParseFloat(value);
 			else if(key.equalsIgnoreCase("maxval"))
 				config.maxVal = tryParseFloat(value);
-			else if(key.equalsIgnoreCase("availableModes"))
-				config.availableModes = value.split("-");
+			else if(key.equalsIgnoreCase("availableModes") || key.equalsIgnoreCase("options"))
+				config.options = value.split("[\\-\\|]");
 			else if(key.equalsIgnoreCase("login") || key.equalsIgnoreCase("user"))
 				config.login = value;
 			else if(key.equalsIgnoreCase("password"))
@@ -196,9 +198,15 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
 			if(commandTypes == null) commandTypes = new ArrayList<Class<? extends Command>>();
 
 			if(ihbc.type == null){
-				if(ihbc.availableModes != null && ihbc.availableModes.length > 0 && StringUtils.isNotBlank(ihbc.curmodeId)){
-					logger.debug("imperiHabGenericBindingProvider: TYPE_THERMOSTAT FOUND! " + ihbc.name);
-					ihbc.type = DeviceTypes.TYPE_THERMOSTAT;
+				if(ihbc.options != null && ihbc.options.length > 0 && StringUtils.isNotBlank(ihbc.curmodeId)){
+					if(StringUtils.isNotBlank(ihbc.currentTempId)){
+						logger.debug("imperiHabGenericBindingProvider: TYPE_THERMOSTAT FOUND! " + ihbc.name);
+						ihbc.type = DeviceTypes.TYPE_THERMOSTAT;
+					}
+					else {
+						logger.debug("imperiHabGenericBindingProvider: TYPE_MULTI_SWITCH FOUND! " + ihbc.name);
+						ihbc.type = DeviceTypes.TYPE_MULTI_SWITCH;						
+					}
 				}
 				else if(commandTypes.contains(PercentType.class))
 					ihbc.type = DeviceTypes.TYPE_DIMMER;
@@ -206,6 +214,8 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
 	    			ihbc.type = DeviceTypes.TYPE_SWITCH;
 	    		else if(commandTypes.contains(ContactItem.class))
 	    			ihbc.type = DeviceTypes.TYPE_MOTION;
+	    		else if(commandTypes.contains(ColorItem.class))
+	    			ihbc.type = DeviceTypes.TYPE_RGBLIGHT;
 			}
 			if(ihbc.type == null){
     			List<Class<? extends State>> dts = item.getAcceptedDataTypes();
@@ -232,7 +242,7 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
 				if(curmode != null)
 					curModeValue = String.valueOf(curmode.getState());
 				if(StringUtils.isBlank(curModeValue) || curModeValue == "Uninitialized")
-					curModeValue = ihbc.availableModes[0];
+					curModeValue = ihbc.options[0];
 				
 				Item currentTempItem = items.get(ihbc.currentTempId);
 				if(currentTempItem != null){				
@@ -263,12 +273,30 @@ public class imperiHabGenericBindingProvider extends AbstractGenericBindingProvi
     				));
 	    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
     					new Object[]{"key", "availablemodes"},
-    					new Object[]{"value",StringUtils.join(ihbc.availableModes, ",")}
+    					new Object[]{"value",StringUtils.join(ihbc.options, ",")}
     				));
 				}else
 				{
 					log("currentTempItem not set!");
 				}
+			}	
+			if(ihbc.type.equals(DeviceTypes.TYPE_MULTI_SWITCH)){
+				Item curmode = items.get(ihbc.curmodeId);
+				String curModeValue = null;
+				if(curmode != null)
+					curModeValue = String.valueOf(curmode.getState());
+				if(StringUtils.isBlank(curModeValue) || curModeValue == "Uninitialized")
+					curModeValue = ihbc.options[0];
+				
+				String value = item.getState().toString();
+    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+					new Object[]{"key", "Value"},
+					new Object[]{"value",curModeValue}
+				));
+    			ihbc.parameters.add(imperiHabBindingConfig.getParameterString(
+					new Object[]{"key", "Choices"},
+					new Object[]{"value",StringUtils.join(ihbc.options, ",")}
+				));
 			}	
 			else if(ihbc.type.equals(DeviceTypes.TYPE_CAMERA)){
 				if(StringUtils.isNotBlank(ihbc.login)){

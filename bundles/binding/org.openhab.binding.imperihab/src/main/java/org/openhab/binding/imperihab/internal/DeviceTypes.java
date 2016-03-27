@@ -24,4 +24,6 @@ public class DeviceTypes {
 	static final String TYPE_SCENE = "DevScene";
 	static final String TYPE_WIND = "DevWind";
 	static final String TYPE_THERMOSTAT = "DevThermostat";	
+	static final String TYPE_RGBLIGHT = "DevRGBLight";
+	static final String TYPE_MULTI_SWITCH = "DevMultiSwitch";
 }

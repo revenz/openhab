@@ -275,7 +275,19 @@ public class imperiHabBinding extends imperiHabBindingBase {
             		
                 return "ok";
             }
-            else if (actionName.equalsIgnoreCase("setMode")){
+            else if (actionName.equalsIgnoreCase("setColor")){     
+            	int alpha = (int)(Integer.parseInt(actionParam.substring(0, 2), 16) / 255f * 100);
+            	int red = Integer.parseInt(actionParam.substring(2, 4), 16);
+            	int green = Integer.parseInt(actionParam.substring(4, 6), 16);
+            	int blue = Integer.parseInt(actionParam.substring(6, 8), 16);
+            	// colour command is redvalue +"," + greenValue + ","+ blueValue
+            	String colourCommand = red + "," + green + "," + blue;
+            	log("#### setting RGB colour to: " + colourCommand);
+            	eventPublisher.postCommand(deviceId, new StringType(colourCommand));
+            	eventPublisher.postCommand(deviceId, PercentType.valueOf(String.valueOf(alpha)));
+                return "ok";
+            }
+            else if (actionName.equalsIgnoreCase("setChoice") || actionName.equalsIgnoreCase("setMode")){
             	String targetItemId = imperiHabGenericBindingProvider.ItemLookups.get(deviceId);
             	if(StringUtils.isBlank(targetItemId)){
             		log("Failed to find targetItemId for device: " + deviceId);
